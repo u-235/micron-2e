@@ -25,8 +25,8 @@
 #include <stdio.h>
 #include "alarm.h"
 #include "clock.h"
+#include "display/n3310lcd.h"
 #include "sensor.h"
-#include "n3310lcd.h"
 #include "power.h"
 
 static struct _mFlags {

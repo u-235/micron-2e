@@ -28,14 +28,14 @@
 
  **********************************************/
 
-#include "compiller.h"
-#include "config.h"
+#include "n3310lcd.h"
+#include "../compiller.h"
+#include "../config.h"
 
 #include HEADER_IO
 #include HEADER_DELAY
 #include <stdio.h>
 
-#include "n3310lcd.h"
 
 #ifndef SOFT_SPI
 unsigned char SPCR_val = 0x50;	// режим

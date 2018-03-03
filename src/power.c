@@ -33,7 +33,7 @@
 #include HEADER_DELAY
 #include <stdio.h>
 #include "alarm.h"
-#include "n3310lcd.h"
+#include "display/n3310lcd.h"
 #include "screens.h"
 
 /**

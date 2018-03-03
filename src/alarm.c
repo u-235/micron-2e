@@ -33,8 +33,9 @@
 #include HEADER_DELAY
 #include "clock.h"
 #include "sensor.h"
-#include "n3310lcd.h"
 #include "alarm.h"
+
+#include "display/n3310lcd.h"
 #include "screens.h"
 
 static struct _aFlags {
