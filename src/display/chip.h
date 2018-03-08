@@ -20,7 +20,7 @@
 
 /**
  * \file
- * \brief
+ * \brief Интерфейс дисплея.
  * \details  Эта часть драйвера предоставляет функции, специфичные для
  *  конкретного микроконтроллера.
  *
@@ -37,26 +37,88 @@
 
 #include "target.h"
 
+/**
+ * \def _reset_up
+ * Макрос или функция для установки вывода reset  в высокое состояние для
+ * дальнейшей работы.
+ *
+ * \def _reset_down
+ * Макрос или функция для сброса вывода reset  в низкое состояние для сброса
+ * дисплея.
+ */
 #define _reset_up(nu)   _pin_on(LCD_RST)
 #define _reset_down(nu) _pin_off(LCD_RST)
 
+/**
+ * \def _chip_enable
+ * Макрос или функция для установки вывода chip enable  в состояние разрешения
+ * работы с дисплеем. Для PCD8544 (n3310) это низкий логический уровень.
+ *
+ * \def _chip_disable
+ * Макрос или функция для установки вывода chip enable  в состояние запрета
+ * работы.
+ */
 #define _chip_enable(nu)        _pin_off(LCD_SS)
 #define _chip_disable(nu)       _pin_on(LCD_SS)
 
+/**
+ * \def _mode_data
+ * Макрос или функция для переключения в режим передачи данных. Для PCD8544
+ * (n3310) этому соответствует высокий логический уровень на входе D/C. Из-за
+ * того, что данный драйвер поддерживает поворот экрана на 180 градусов,
+ * _mode_data и _mode_cmd реализованы как функции.
+ *
+ * \def _mode_cmd
+ * Макрос или функция для переключения в режим передачи команд.
+ */
 #define _mode_data  ModeData
 #define _mode_cmd   ModeCMD
 
+/**
+ * \def _clock_up
+ * Макрос или функция для установки вывода clock  в состояние высокого
+ * логического уровня. В режиме аппаратного SPI это пустой макрос, так как
+ * соответствующий вывод управляется модулем SPI.
+ *
+ * \def _clock_down
+ * Макрос или функция для сброса вывода clock  в состояние низкого логического
+ * уровня.
+ */
+#ifdef LCD_SOFT_SPI
 #define _clock_up(nu)   _pin_on(LCD_CLK)
 #define _clock_down(nu) _pin_off(LCD_CLK)
+#else
+#define _clock_up(nu)
+#define _clock_down(nu)
+#endif
 
+/**
+ * \def _data_up
+ * Макрос или функция для установки вывода data  в состояние высокого
+ * логического уровня. В режиме аппаратного SPI это пустой макрос, так как
+ * соответствующий вывод управляется модулем SPI.
+ *
+ * \def _data_down
+ * Макрос или функция для сброса вывода data  в состояние низкого логического
+ * уровня.
+ */
+#ifdef LCD_SOFT_SPI
 #define _data_up(nu)   _pin_on(LCD_MOSI)
 #define _data_down(nu) _pin_off(LCD_MOSI)
+#else
+#define _data_up(nu)
+#define _data_down(nu)
+#endif
 
 /**
  *  0 for LSB transmit first
  */
 static unsigned char order;
 
+/**
+ * Переключение в режим передачи данных. Если используется опция LCD_ROTATE, то
+ * меняется порядок выдачи первого бита.
+ */
 static void ModeData()
 {
 #ifdef LCD_ROTATE
@@ -67,12 +129,18 @@ static void ModeData()
         _pin_on(LCD_DC);
 }
 
+/**
+ * Переключение в режим передачи команд.
+ */
 static void ModeCMD()
 {
         order = 1;
         _pin_off(LCD_DC);
 }
 
+/**
+ * Инициализация переферии МК, связанной с управлением дисплеем.
+ */
 static void HardInit()
 {
         _dir_out(LCD_RST);
@@ -80,33 +148,41 @@ static void HardInit()
         _dir_out(LCD_MOSI);
         _dir_out(LCD_CLK);
         _dir_out(LCD_SS);
-#ifndef SOFT_SPI
+        _clock_up();
+#ifndef LCD_SOFT_SPI
         SPCR = (1 << MSTR) | (1 << DORD);
         SPSR = 1 << SPI2X;
 #endif
 }
 
+/**
+ * Включение питания дисплея.
+ */
 static void HardOn()
 {
         _pin_on(LCD_PWR);
 }
 
+/**
+ * Выключение питания дисплея.
+ */
 static void HardOff()
 {
-        _pin_off(LCD_PWR);
         _pin_off(LCD_DC);
         _pin_off(LCD_RST);
         _pin_off(LCD_MOSI);
         _pin_off(LCD_CLK);
+        _pin_off(LCD_PWR);
 }
 
 /**
  * Send byte to display.
  * \param data byte to transmit.
  */
-#ifndef SOFT_SPI
+#ifndef LCD_SOFT_SPI
 /* Use hardware SPI */
-static void LcdSend(unsigned char data) {
+static void LcdSend(unsigned char data)
+{
         /*
          * DORD=0 MSB transmit first
          * DORD=1 LSB first
@@ -118,16 +194,16 @@ static void LcdSend(unsigned char data) {
         }
         /* Send data to display controller */
         SPDR = data;
-        while ( (SPSR & (1 << SPIF) == 0 ) {
-                                /* Waiting until  a serial transfer is't complete */
-                        }
-                }
+        while ((SPSR & (1 << SPIF)) == 0) {
+                /* Waiting until  a serial transfer is't complete */
+        }
+}
 
 #else
 /* Use bitbang reverse */
 static void LcdSend(unsigned char data)
 {
-        unsigned char i, mask = 1;
+        unsigned char i, mask;
 
         if (order == 0) {
                 mask = 1 << 0;
