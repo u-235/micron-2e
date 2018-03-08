@@ -36,14 +36,14 @@
 extern "C" {
 #endif
 
-#define _get_row(ptr)  (*(__flash const char*)(ptr))
+#define _get_row(ptr)  (*(flash const char*)(ptr))
 
 /**
  * Возвращает указатель на растр указанного символа.
  * \param ch Символ, для которого требуется растр.
  * \return Указатель на растр.
  */
-extern const char * GetGlif(unsigned char ch);
+extern char * GetGlif(unsigned char ch);
 
 #ifdef _cplusplus
 extern "C" {

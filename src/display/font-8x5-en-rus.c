@@ -29,7 +29,7 @@
 
 #include "target.h"
 
-static flash char table[0x01E0] =
+static flash const char table[0x01E0] =
 {
         0x00, 0x00, 0x00, 0x00, 0x00,   // 20 space
         0x00, 0x00, 0x5F, 0x00, 0x00,   // 21 !
@@ -130,7 +130,7 @@ static flash char table[0x01E0] =
 /*  7f Left Arrow <- */
 };
 
-static flash char table_rus[0x0140] =
+static flash const char table_rus[0x0140] =
 {
         0x7E, 0x11, 0x11, 0x11, 0x7E,  // C0 А
         0x7F, 0x49, 0x49, 0x49, 0x31,  // C1 Б
@@ -199,12 +199,12 @@ static flash char table_rus[0x0140] =
 // FF я
                 };
 
-extern const char * GetGlif(unsigned char ch)
+extern char * GetGlif(unsigned char ch)
 {
         if (ch > 0x7f) {
-                return &table_rus[(ch * 5 - 0x3C0)];
+                return (char*) &table_rus[(ch * 5 - 0x3C0)];
         } else {
-                return &table[(ch * 5 - 0xA0)];
+                return (char*) &table[(ch * 5 - 0xA0)];
         }
 }
 

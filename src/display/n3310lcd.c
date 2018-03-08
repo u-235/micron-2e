@@ -330,7 +330,7 @@ extern void LcdSetTextPos(unsigned char x, unsigned char y)  //Sets cursor locat
 extern void LcdChr(char ch, char inv)
 {
         unsigned char i, row;
-        const char *glif;
+        char *glif;
 
         glif = GetGlif(ch);
 
@@ -365,7 +365,7 @@ unsigned char StretchRow(unsigned char row)
 extern void LcdChrBold(char ch, char inv)  //Displays a bold character at current cursor location and increment cursor location
 {
         unsigned char i, a = 0, b = 0, row = 0;
-        const char *glif;
+        char *glif;
 
         glif = GetGlif(ch);
 
@@ -400,7 +400,7 @@ extern void LcdChrBig(char ch, char inv)  //Displays a character at current curs
 {
         unsigned char i;
         unsigned char a = 0, b = 0, row = 0;
-        const char *glif;
+        char *glif;
 
         glif = GetGlif(ch);
 
