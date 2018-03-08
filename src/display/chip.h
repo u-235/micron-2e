@@ -31,6 +31,10 @@
 #ifndef DISPLAY_CHIP_H_
 #define DISPLAY_CHIP_H_
 
+#ifndef LCD_MONO_INSIDE_
+#error This file most be included only in lcd-mono.c
+#endif
+
 #include "target.h"
 
 #define _reset_up(nu)   _pin_on(LCD_RST)
@@ -39,14 +43,35 @@
 #define _chip_enable(nu)        _pin_off(LCD_SS)
 #define _chip_disable(nu)       _pin_on(LCD_SS)
 
-#define _mode_data(nu)  _pin_on(LCD_DC)
-#define _mode_cmd(nu)   _pin_off(LCD_DC)
+#define _mode_data  ModeData
+#define _mode_cmd   ModeCMD
 
 #define _clock_up(nu)   _pin_on(LCD_CLK)
 #define _clock_down(nu) _pin_off(LCD_CLK)
 
 #define _data_up(nu)   _pin_on(LCD_MOSI)
 #define _data_down(nu) _pin_off(LCD_MOSI)
+
+/**
+ *  0 for LSB transmit first
+ */
+static unsigned char order;
+
+static void ModeData()
+{
+#ifdef LCD_ROTATE
+        order = 0;
+#else
+        order = 1;
+#endif
+        _pin_on(LCD_DC);
+}
+
+static void ModeCMD()
+{
+        order = 1;
+        _pin_off(LCD_DC);
+}
 
 static void HardInit()
 {
@@ -56,16 +81,18 @@ static void HardInit()
         _dir_out(LCD_CLK);
         _dir_out(LCD_SS);
 #ifndef SOFT_SPI
-        SPCR = 0x50;  // режим
-        SPSR = 0x01;// удвоение частоты
+        SPCR = (1 << MSTR) | (1 << DORD);
+        SPSR = 1 << SPI2X;
 #endif
 }
 
-static void HardOn(){
+static void HardOn()
+{
         _pin_on(LCD_PWR);
 }
 
-static void HardOff(){
+static void HardOff()
+{
         _pin_off(LCD_PWR);
         _pin_off(LCD_DC);
         _pin_off(LCD_RST);
@@ -75,34 +102,26 @@ static void HardOff(){
 
 /**
  * Send byte to display.
- * @param data byte to transmit.
+ * \param data byte to transmit.
  */
 #ifndef SOFT_SPI
 /* Use hardware SPI */
 static void LcdSend(unsigned char data) {
-        SPDR = data;   //Send data to display controller
-        while ( (SPSR & 0x80) != 0x80 ) {
-                //Wait until Tx register empty
+        /*
+         * DORD=0 MSB transmit first
+         * DORD=1 LSB first
+         */
+        if (order == 0) {
+                SPCR |= (1 << DORD);
+        } else {
+                SPCR &= ~(1 << DORD);
         }
-}
-
-#elif !defined LCD_ROTATE
-/* Use bitbang */
-static void LcdSend(unsigned char data) {
-        unsigned char i, mask = 1<<8;
-
-        for (i = 0; i < 8; i++) {
-                if ((data & mask) != 0) {
-                        _data_up();
+        /* Send data to display controller */
+        SPDR = data;
+        while ( (SPSR & (1 << SPIF) == 0 ) {
+                                /* Waiting until  a serial transfer is't complete */
+                        }
                 }
-                else {
-                        _data_down();
-                }
-                mask = mask >> 1;
-                _clock_up();
-                _clock_down();
-        }
-}
 
 #else
 /* Use bitbang reverse */
@@ -110,13 +129,25 @@ static void LcdSend(unsigned char data)
 {
         unsigned char i, mask = 1;
 
+        if (order == 0) {
+                mask = 1 << 0;
+        } else {
+                mask = 1 << 7;
+        }
+
         for (i = 0; i < 8; i++) {
                 if ((data & mask) != 0) {
                         _data_up();
                 } else {
                         _data_down();
                 }
-                mask = mask << 1;
+
+                if (order == 0) {
+                        mask <<= 1;
+                } else {
+                        mask >>= 1;
+                }
+
                 _clock_up();
                 _clock_down();
         }
