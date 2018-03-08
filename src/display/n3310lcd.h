@@ -24,7 +24,7 @@
 #define LCD_MODE_BLANK          0x00
 #define LCD_MODE_FILLED         0x01
 #define LCD_MODE_NORMAL         0x02
-#define LCD_MODE_INVERSE        0x01
+#define LCD_MODE_INVERSE        0x03
 
 /**
  * \brief Initials part MCU and display.
