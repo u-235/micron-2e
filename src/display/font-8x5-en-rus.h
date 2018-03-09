@@ -36,6 +36,9 @@
 extern "C" {
 #endif
 
+#define FONT_WIDTH      5
+#define FONT_HEIGHT     8
+
 #define _get_row(ptr)  (*(flash const char*)(ptr))
 
 /**

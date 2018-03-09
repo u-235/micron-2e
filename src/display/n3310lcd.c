@@ -1,6 +1,8 @@
 /*****************************************************************************
  *
  *  Nokia 3310 display driver
+ *  Copyright (C) 2003  Sylvain Bissonnette
+ *  Copyright (C) 2010  Aheir, aheir@radiokot.ru
  *  Copyright (C) 2018  Nick Egorrov
  *
  *  This program is free software: you can redistribute it and/or modify
@@ -18,15 +20,14 @@
  *
  *****************************************************************************/
 
-/**********************************************
- ****************PCD8544 Driver*****************
- ***********************************************
+/**
+ * \file
+ * \brief Драйвер монохромного дисплея.
+ * \details
+ *
+ */
 
- for original NOKIA 3310 & alternative "chinese" version of display
-
- 48x84 dots, 6x14 symbols
-
- **********************************************/
+#define LCD_MONO_INSIDE_
 
 #include "n3310lcd.h"
 #include "pcd8544.h"
@@ -34,9 +35,9 @@
 #include "font-8x5-en-rus.h"
 #include "chip.h"
 
-//***********************************************************
-//Настройки контроллера дисплея и переменные для работы с ним
-//***********************************************************
+/*************************************************************
+ *      Параметры дисплея
+ *************************************************************/
 
 #ifndef LCD_DIRECTION
 #define LCD_DIRECTION FUNC_DIR_VERT
@@ -54,103 +55,79 @@
 #define LCD_CONTRAST 55u
 #endif
 
-#ifndef LCD_NOKIA3310_CHINA_SHIFT_Y
-#define LCD_NOKIA3310_CHINA_SHIFT_Y 5
-#endif
+/*#ifndef LCD_NOKIA3310_CHINA_SHIFT_Y
+ *#define LCD_NOKIA3310_CHINA_SHIFT_Y 5
+ *#endif
+ */
 
-#define PIXEL_OFF	0		//режимы отображения пикселя - используются в графических функциях
-#define PIXEL_ON	1
-#define PIXEL_XOR	2
+#define LCD_SIZE_HORZ           84	//разрешение экрана
+#define LCD_SIZE_VERT           48
+#define LCD_CELL_SIZE_HORZ      1
+#define LCD_CELL_SIZE_VERT      8
 
-#define LCD_X_RES               84	//разрешение экрана
-#define LCD_Y_RES               48
-#define LCD_CACHSIZE          LCD_X_RES*LCD_Y_RES/8
+/*************************************************************
+ *      Variables
+ *************************************************************/
 
-#define Cntr_X_RES              102    	//разрешение контроллера - предполагаемое - но работает))
-#define Cntr_Y_RES              64
-#define Cntr_buf_size           Cntr_X_RES*Cntr_Y_RES/8
+#define LCD_CELL_AT_HORZ        (LCD_SIZE_HORZ/LCD_CELL_SIZE_HORZ)
+#define LCD_CELL_AT_VERT        (LCD_SIZE_VERT/LCD_CELL_SIZE_VERT)
 
-unsigned char LcdCache[LCD_CACHSIZE];  //Cache buffer in SRAM 84*48 bits or 504 bytes
-unsigned int LcdCacheIdx;  //Cache index
+#define LCD_CHAR_SPASE_HORZ     1
+#define LCD_CHAR_SPASE_VERT     0
+#define LCD_CHAR_WIDTH          (FONT_WIDTH + LCD_CHAR_SPASE_HORZ)
+#define LCD_CHAR_HEIGHT         (FONT_HEIGHT + LCD_CHAR_SPASE_VERT)
+#define LCD_CHAR_COLUMN         (LCD_SIZE_HORZ / LCD_CHAR_WIDTH)
+#define LCD_CHAR_LINE           (LCD_SIZE_VERT / LCD_CHAR_HEIGHT)
 
+#define LCD_CACHSIZE            (LCD_CELL_AT_HORZ*LCD_CELL_AT_VERT)
+
+/*************************************************************
+ *      Variables
+ *************************************************************/
+
+static char ucBuff[LCD_CACHSIZE];
+static lcd_ind_t buffIndex;
 //power-down control: 0 - chip is active, 1 - chip is in PD-mode
 static char fPowerDown = 0;
 
-extern void LcdUpdate()  //Copies the LCD cache into the device RAM
+/*************************************************************
+ *      Level 0 : display depends function
+ *************************************************************/
+
+static void ChipOn()
 {
-        int i;
-#ifdef LCD_NOKIA3310_CHINA
-        char j;
-#endif
         _mode_cmd();
-        LcdSend(MAKE_ADDR_X(0));
-        LcdSend(MAKE_ADDR_Y(0));
-        _mode_data();
-
-#ifdef LCD_NOKIA3310_CHINA                    		//если китайский дисплей - грузим пустую строку
-        for (j = Cntr_X_RES; j > 0; j--) {
-                LcdSend(0);
-        }
-#endif
-#ifdef LCD_ROTATE
-        for (i = LCD_CACHSIZE - 1; i >= 0; i--)  //грузим данные
-#else
-                        for (i = 0; i < LCD_CACHSIZE; i++)  //грузим данные
-#endif
-                        {
-                LcdSend(LcdCache[i]);
-#ifdef LCD_NOKIA3310_CHINA				//если дисплей китайский - догружаем каждую строку до размера его буфера
-                if (++j == LCD_X_RES) {
-                        for (j = (Cntr_X_RES - LCD_X_RES); j > 0; j--) {
-                                LcdSend(0);
-                        }
-                        j = 0;
-                }
-#endif
-        }
+        LcdSend(MAKE_FUNC(FUNC_SET_EXTEND | LCD_DIRECTION | FUNC_PWR_ACTIVE));
 }
 
-/**
- * Clears internal buffer the display
- */
-extern void LcdClear()
+static void ChipOff()
 {
-        int i = LCD_CACHSIZE;
-
-        while (i) {
-                LcdCache[--i] = 0;
-        }
+        _mode_cmd();
+        LcdSend(MAKE_FUNC(FUNC_SET_BASIC | LCD_DIRECTION | FUNC_PWR_DOWN));
 }
 
-static void PrivateInit()
+static void ChipInit()
 {
-        HardInit();
-        _chip_enable();
         delay_ms(1);
-        _clock_down();
         _reset_down();
-        delay_ms(20);
+        delay_ms(110);
         _reset_up();
-        _chip_disable();
 
-        _mode_cmd();
-        LcdSend(MAKE_FUNC(FUNC_SET_EXTEND));
+        ChipOn();
         LcdSend(EMAKE_TEMP(LCD_TEMPERATURE));
-        LcdSend(CMAKE_SPI_MODE(SPI_MODE_MSB)); /* порядок битов в SPI для китая */
         LcdSend(EMAKE_BIAS(LCD_BIAS));
         LcdSend(EMAKE_CONTR(LCD_CONTRAST));
-        LcdSend(CMAKE_SHIFT(LCD_NOKIA3310_CHINA_SHIFT_Y));
+        /*
+         *LcdSend(CMAKE_SPI_MODE(SPI_MODE_MSB));
+         *LcdSend(CMAKE_SHIFT(LCD_NOKIA3310_CHINA_SHIFT_Y));
+         */
         LcdSend(MAKE_FUNC(FUNC_SET_BASIC | LCD_DIRECTION | FUNC_PWR_ACTIVE));
         LcdMode(LCD_MODE_NORMAL);
         LcdClear();
 }
 
-extern void LcdInit()
-{
-        LcdPwrOn();
-}
-
-extern void LcdContrast(unsigned char contrast)  //contrast -> Contrast value from 0x00 to 0x7F
+//contrast -> Contrast value from 0x00 to 0x7F
+extern void LcdContrast(unsigned char contrast)
 {
         if (contrast > 0x7F) {
                 return;
@@ -161,7 +138,8 @@ extern void LcdContrast(unsigned char contrast)  //contrast -> Contrast value fr
         LcdSend(MAKE_FUNC(FUNC_SET_BASIC | LCD_DIRECTION | FUNC_PWR_ACTIVE));
 }
 
-extern void LcdMode(unsigned char mode)  //режим дисплея: 0 - blank, 1 - all on, 2 - normal, 3 - inverse
+//режим дисплея: 0 - blank, 1 - all on, 2 - normal, 3 - inverse
+extern void LcdMode(unsigned char mode)
 {
         if (mode > 3) {
                 return;
@@ -170,53 +148,213 @@ extern void LcdMode(unsigned char mode)  //режим дисплея: 0 - blank,
         LcdSend(MAKE_MODE(mode));
 }
 
-extern void LcdImage(const unsigned char *imageData)  //вывод изображения
+/*************************************************************
+ *      Level 1 : power management
+ *************************************************************/
+
+extern void LcdInit()
 {
-        unsigned int i;
+        HardInit();
+        HardOn();
+        ChipInit();
+        fPowerDown = 0;
+}
+
+extern char LcdIsPwrDown()
+{
+        return fPowerDown;
+}
+
+extern void LcdPwrOff()  //выкл дисплея
+{
+        LcdClear();
+        LcdUpdate();
+        ChipOff();
+        HardOff();
+        fPowerDown = 1;
+}
+
+extern void LcdPwrOn()  //вкл дисплея
+{
+        HardOn();
+        ChipInit();
+        fPowerDown = 0;
+}
+
+/*************************************************************
+ *      Level 2 : basic function
+ *************************************************************/
+
+/**
+ *
+ */
+#ifdef LCD_ROTATE
+extern void LcdUpdate()
+{
+        lcd_size_t x, y;
+        char *pb;
+
+        pb = &ucBuff[LCD_CACHSIZE - 1];
+
+        for (y = 0; y < LCD_CELL_AT_VERT; y++) {
+                _mode_cmd();
+                LcdSend(MAKE_ADDR_Y(y));
+                LcdSend(MAKE_ADDR_X(0));
+                _mode_data();
+                for (x = 0; x < LCD_CELL_AT_HORZ; x++) {
+                        LcdSend(*pb--);
+                }
+        }
+}
+#else
+extern void LcdUpdate()
+{
+        lcd_size_t x, y;
+        char *pb;
+
+        pb = &ucBuff[0];
+
+        for (y = 0; y < LCD_CELL_AT_VERT; y++) {
+                _mode_cmd();
+                LcdSend(MAKE_ADDR_Y(y));
+                LcdSend(MAKE_ADDR_X(0));
+                _mode_data();
+                for (x = 0; x < LCD_CELL_AT_HORZ; x++) {
+                        LcdSend(*pb++);
+                }
+        }
+}
+#endif
+
+/**
+ * Clears internal buffer the display
+ */
+extern void LcdClear()
+{
+        int i = LCD_CACHSIZE;
+
+        while (i) {
+                ucBuff[--i] = 0;
+        }
+}
+
+//Sets cursor location to xy location. Range: 1,1 .. 14,6
+extern void LcdSetTextPos(lcd_size_t x, lcd_size_t y)
+{
+        if (x < LCD_CHAR_COLUMN && y < LCD_CHAR_LINE) {
+                buffIndex = (lcd_ind_t) (y - 1) * LCD_CELL_AT_HORZ
+                                + (x - 1) * LCD_CHAR_WIDTH;
+        }
+}
+
+static unsigned char StretchRow(unsigned char row)
+{
+        unsigned char retval;
+        retval = row & 0x80;
+        retval |= ((row >> 1) & 0x60);
+        retval |= ((row >> 1) & 0x18);
+        retval |= ((row >> 1) & 0x06);
+        retval |= ((row >> 1) & 0x01);
+        return retval;
+}
+
+//Displays a character at current cursor location and increment cursor location
+extern void LcdChr(char ch, char opt)
+{
+        unsigned char i, top, bottom;
+        char *glif;
+
+        glif = GetGlif(ch);
+
+        for (i = 0; i < LCD_CHAR_WIDTH; i++) {
+                if (i < FONT_WIDTH) {
+                        top = _get_row(glif);
+                } else {
+                        /* last iteration for space between characters */
+                        top = 0;
+                }
+
+                if ((opt & LCD_TEXT_NEGATIVE) != 0) {
+                        top = ~top;
+                }
+
+                if ((opt & LCD_TEXT_HIGH) != 0) {
+                        bottom = StretchRow(top << 4);
+                        top = StretchRow(top);
+                        /*TODO возможен выход за пределы буфера!!! */
+                        ucBuff[buffIndex + LCD_CELL_AT_HORZ] = bottom;
+                }
+                ucBuff[buffIndex++] = top;
+
+                if ((opt & LCD_TEXT_WIDE) == 0) {
+                        if ((opt & LCD_TEXT_HIGH) != 0) {
+                                /*TODO возможен выход за пределы буфера!!! */
+                                ucBuff[buffIndex + LCD_CELL_AT_HORZ] = bottom;
+                        }
+                        ucBuff[buffIndex++] = top;
+                }
+        }
+}
+
+//вывод изображения
+extern void LcdImage(const unsigned char *imageData)
+{
+        lcd_ind_t i;
 
         _mode_cmd();
         for (i = 0; i < LCD_CACHSIZE; i++) {
-                LcdCache[i] = imageData[i];  //грузим данные
+                ucBuff[i] = imageData[i];  //грузим данные
         }
 }
 
-extern void LcdPixel(unsigned char x, unsigned char y, unsigned char mode)  //Displays a pixel at given absolute (x, y) location, mode -> Off, On or Xor
+//Displays a pixel at given absolute (x, y) location, mode -> Off, On or Xor
+extern void LcdPixel(lcd_size_t x, lcd_size_t y, unsigned char mode)
 {
-        int index;
-        unsigned char offset, data;
+        lcd_ind_t index;
+        unsigned char offset, mask;
 
-        if (x > LCD_X_RES) {
-                return;  //если передали в функцию муть - выходим
-        }
-        if (y > LCD_Y_RES) {
+        if (x > LCD_SIZE_HORZ || y > LCD_SIZE_VERT) {
                 return;
         }
 
-        index = (((int) (y) / 8) * 84) + x;  //считаем номер байта в массиве памяти дисплея
-        offset = y - ((y / 8) * 8);  //считаем номер бита в этом байте
+        index = (lcd_ind_t) y / LCD_CELL_SIZE_VERT * LCD_SIZE_HORZ + x;  //считаем номер байта в массиве памяти дисплея
+        offset = y & 0x03;  //считаем номер бита в этом байте
 
-        data = LcdCache[index];  //берем байт по найденному индексу
-
-        if (mode == PIXEL_OFF) {
-                data &= (~(0x01 << offset));  //редактируем бит в этом байте
-        } else if (mode == PIXEL_ON) {
-                data |= (0x01 << offset);
-        } else if (mode == PIXEL_XOR) {
-                data ^= (0x01 << offset);
+        mask = 0x01 << offset;
+        if (mode == LCD_PIXEL_OFF) {
+                ucBuff[index] &= ~mask;
+        } else if (mode == LCD_PIXEL_ON) {
+                ucBuff[index] |= mask;
+        } else if (mode == LCD_PIXEL_XOR) {
+                ucBuff[index] ^= mask;
         }
-
-        LcdCache[index] = data;  //загружаем байт назад
 }
 
-extern void LcdLine(int x1, int y1, int x2, int y2, unsigned char mode)  //Draws a line between two points on the display - по Брезенхейму
-{
-        signed int dy = 0;
-        signed int dx = 0;
-        signed int stepx = 0;
-        signed int stepy = 0;
-        signed int fraction = 0;
+/*************************************************************
+ *      Level 3 : extends function
+ *************************************************************/
 
-        if (x1 > LCD_X_RES || x2 > LCD_X_RES || y1 > LCD_Y_RES || y2 > LCD_Y_RES) {
+//Displays a string at current cursor location
+extern void LcdStringEx(char *msg, char opt, lcd_size_t x, lcd_size_t y)
+{
+        LcdSetTextPos(x, y);
+        while(*msg != 0) {
+                        LcdChr(*msg++, opt);
+        }
+}
+
+//Draws a line between two points on the display - по Брезенхейму
+extern void LcdLine(lcd_size_t x1, lcd_size_t y1, lcd_size_t x2, lcd_size_t y2,
+                unsigned char mode)
+{
+        lcd_pos_t dy = 0;
+        lcd_pos_t dx = 0;
+        lcd_pos_t stepx = 0;
+        lcd_pos_t stepy = 0;
+        lcd_pos_t fraction = 0;
+
+        if (x1 > LCD_SIZE_HORZ || x2 > LCD_SIZE_HORZ || y1 > LCD_SIZE_VERT
+                        || y2 > LCD_SIZE_VERT) {
                 return;
         }
 
@@ -262,13 +400,15 @@ extern void LcdLine(int x1, int y1, int x2, int y2, unsigned char mode)  //Draws
         }
 }
 
-extern void LcdCircle(char x, char y, char radius, unsigned char mode)  //рисуем круг по координатам с радиусом - по Брезенхейму
+//рисуем круг по координатам с радиусом - по Брезенхейму
+extern void LcdCircle(lcd_size_t x, lcd_size_t y, lcd_size_t radius,
+                unsigned char mode)
 {
-        signed char xc = 0;
-        signed char yc = 0;
-        signed char p = 0;
+        lcd_pos_t xc = 0;
+        lcd_pos_t yc = 0;
+        lcd_pos_t p = 0;
 
-        if (x > LCD_X_RES || y > LCD_Y_RES) {
+        if (x > LCD_SIZE_HORZ || y > LCD_SIZE_VERT) {
                 return;
         }
 
@@ -288,18 +428,11 @@ extern void LcdCircle(char x, char y, char radius, unsigned char mode)  //рис
         }
 }
 
-extern void Batt(int x1, int y1)  //рисуем батарейку
+//рисуем прогресс-бар
+extern void LcdBar(lcd_size_t x1, lcd_size_t y1, lcd_size_t x2, lcd_size_t y2,
+                unsigned char persent)
 {
-        LcdLine(x1, y1, (x1 + 5), y1, 1);  //up
-        LcdLine(x1 + 1, (y1 + 9), (x1 + 1 + 25), (y1 + 9), 1);  //down
-        LcdLine(x1 + 1, y1, x1 + 1, (y1 + 9), 1);  //left
-        LcdLine((x1 + 1 + 25), y1, (x1 + 1 + 25), (y1 + 9), 1);  //right
-        LcdLine(x1, y1 + 3, x1, y1 + 6, 1);  // пимпочка
-}
-
-extern void LcdBar(int x1, int y1, int x2, int y2, unsigned char persent)  //рисуем прогресс-бар
-{
-        unsigned char line;
+        lcd_size_t line;
         if (persent > 100) {
                 return;
         }
@@ -317,199 +450,4 @@ extern void LcdBar(int x1, int y1, int x2, int y2, unsigned char persent)  //р�
         line = persent * (x2 - x1 - 7) / 100 - 1;
         LcdLine(x1 + 4, y1 + 2, x2 - 4, y2 - 2, 0);
         LcdLine(x1 + 4, y1 + 2, x1 + 4 + line, y2 - 2, 1);
-}
-
-extern void LcdSetTextPos(unsigned char x, unsigned char y)  //Sets cursor location to xy location. Range: 1,1 .. 14,6
-{
-        if (x <= 14 && y <= 6) {
-                LcdCacheIdx = ((int) (y) - 1) * 84 + ((int) (x) - 1) * 6;
-        }
-}
-
-//Displays a character at current cursor location and increment cursor location
-extern void LcdChr(char ch, char inv)
-{
-        unsigned char i, row;
-        char *glif;
-
-        glif = GetGlif(ch);
-
-        for (i = 0; i < 5; i++) {
-                row = _get_row(glif);
-                if (inv) {
-                        row = ~row;
-                }
-                LcdCache[LcdCacheIdx++] = row;
-        }
-
-        if (inv) {
-                row = 0xff;
-        } else {
-                row = 0;
-        }
-        //добавляем пробел между символами
-        LcdCache[LcdCacheIdx++] = row;
-}
-
-unsigned char StretchRow(unsigned char row)
-{
-        unsigned char retval;
-
-        retval = (row & 0x01) * 3;
-        retval |= (row & 0x02) * 6;
-        retval |= (row & 0x04) * 12;
-        retval |= (row & 0x08) * 24;
-        return retval;
-}
-
-extern void LcdChrBold(char ch, char inv)  //Displays a bold character at current cursor location and increment cursor location
-{
-        unsigned char i, a = 0, b = 0, row = 0;
-        char *glif;
-
-        glif = GetGlif(ch);
-
-        for (i = 0; i < 5; i++) {
-                row = _get_row(glif);
-                if (inv) {
-                        row = ~row;
-                }
-
-                b = StretchRow(row);  //"растягиваем" столбец на два байта
-                row >>= 4;
-                a = StretchRow(row);
-
-                LcdCache[LcdCacheIdx] = b;  //копируем байты в экранный буфер
-                LcdCache[LcdCacheIdx + 1] = b;  //дублируем для получения жирного шрифта
-                LcdCache[LcdCacheIdx + 84] = a;
-                LcdCache[LcdCacheIdx + 85] = a;
-                LcdCacheIdx = LcdCacheIdx + 2;
-        }
-
-        if (inv) {
-                row = 0xff;
-        } else {
-                row = 0;
-        }
-        //для пробела между символами
-        LcdCache[LcdCacheIdx++] = row;
-        LcdCache[LcdCacheIdx++] = row;
-}
-
-extern void LcdChrBig(char ch, char inv)  //Displays a character at current cursor location and increment cursor location
-{
-        unsigned char i;
-        unsigned char a = 0, b = 0, row = 0;
-        char *glif;
-
-        glif = GetGlif(ch);
-
-        for (i = 0; i < 5; i++) {
-                row = _get_row(glif);
-                if (inv) {
-                        row = ~row;
-                }
-
-                b = StretchRow(row);  //"растягиваем" столбец на два байта
-                row >>= 4;
-                a = StretchRow(row);
-
-                LcdCache[LcdCacheIdx] = b;
-                LcdCache[LcdCacheIdx + 84] = a;
-                LcdCacheIdx = LcdCacheIdx + 1;
-        }
-
-        if (inv) {
-                row = 0xff;
-        } else {
-                row = 0;
-        }
-        LcdCache[LcdCacheIdx++] = row;
-}
-
-extern void LcdString(char *msg, unsigned char x, unsigned char y)  //Displays a string at current cursor location
-{
-        unsigned char i;
-
-        if (x > 14 || y > 6) return;
-        LcdSetTextPos(x, y);
-        for (i = 0; i < 15 - x; i++) {
-                if (msg[i]) {
-                        LcdChr(msg[i], 0);
-                }
-        }
-}
-
-extern void LcdStringInv(char *msg, unsigned char x, unsigned char y)  //Displays a string at current cursor location
-{
-        unsigned char i;
-
-        if (x > 14 || y > 6) return;
-        LcdSetTextPos(x, y);
-        for (i = 0; i < 15 - x; i++) {
-                if (msg[i]) {
-                        LcdChr(msg[i], 1);
-                }
-        }
-}
-
-extern void LcdStringBold(char *msg, unsigned char x, unsigned char y)  //Displays a string at current cursor location
-{
-        unsigned char i;
-
-        if (x > 13 || y > 5) return;
-        LcdSetTextPos(x, y);
-        for (i = 0; i < 14 - x; i++) {
-                if (msg[i]) {
-                        LcdChrBold(msg[i], 0);
-                }
-        }
-}
-
-extern void LcdStringBoldInv(char *msg, unsigned char x, unsigned char y)  //Displays a string at current cursor location
-{
-        unsigned char i;
-
-        if (x > 13 || y > 5) return;
-        LcdSetTextPos(x, y);
-        for (i = 0; i < 14 - x; i++) {
-                if (msg[i]) {
-                        LcdChrBold(msg[i], 1);
-                }
-        }
-}
-
-extern void LcdStringBig(char *msg, unsigned char x, unsigned char y)  //Displays a string at current cursor location
-{
-        unsigned char i;
-
-        if (x > 14 || y > 5) return;
-        LcdSetTextPos(x, y);
-        for (i = 0; i < 15 - x; i++) {
-                if (msg[i]) {
-                        LcdChrBig(msg[i], 0);
-                }
-        }
-}
-
-extern char LcdIsPwrDown()
-{
-        return fPowerDown;
-}
-
-extern void LcdPwrOff()  //выкл дисплея
-{
-        LcdClear();
-        LcdUpdate();
-        _mode_cmd();
-        LcdSend(MAKE_FUNC(FUNC_SET_BASIC | LCD_DIRECTION | FUNC_PWR_DOWN));
-        HardOff();
-        fPowerDown = 1;
-}
-
-extern void LcdPwrOn()  //вкл дисплея
-{
-        HardOn();
-        PrivateInit();
-        fPowerDown = 0;
 }
