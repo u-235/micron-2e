@@ -34,7 +34,7 @@ static struct _mFlags {
         unsigned char need_update :1;
 } flags;
 
-static char buf[15];                //С‚РµРєСЃС‚РѕРІС‹Р№ Р±СѓС„РµСЂ РґР»СЏ РІС‹РІРѕРґР° РЅР° LCD
+static char buf[15];                //текстовый буфер для вывода на LCD
 
 extern char IsMenuActive()
 {
@@ -96,14 +96,14 @@ void menu_modification_check(char selected)
 
 unsigned char DrawMenu(unsigned char menu_select)
 {
-        format(buf, PSTR("     РњР•РќР®     "));
+        format(buf, PSTR("     МЕНЮ     "));
         LcdStringInv(buf, 1, 1);
 
         if (menu_select < 5) {
                 if (GetAlarmLevel() == 0) {
-                        format(buf, PSTR("РўСЂРµРІРѕРіР°  РѕС‚РєР»."));
+                        format(buf, PSTR("Тревога  откл."));
                 } else {
-                        format(buf, PSTR("РўСЂРµРІРѕРіР°%4uРјРєР "), GetAlarmLevel());
+                        format(buf, PSTR("Тревога%4uмкР"), GetAlarmLevel());
                 }
 
                 if (menu_select == 1) {
@@ -113,9 +113,9 @@ unsigned char DrawMenu(unsigned char menu_select)
                 }
 
                 if (GetSleepTime() == 0) {
-                        format(buf, PSTR("РЎРѕРЅ      РѕС‚РєР»."));
+                        format(buf, PSTR("Сон      откл."));
                 } else {
-                        format(buf, PSTR("РЎРѕРЅ    %4uСЃРµРє"), GetSleepTime());
+                        format(buf, PSTR("Сон    %4uсек"), GetSleepTime());
                 }
                 if (menu_select == 2) {
                         LcdStringInv(buf, 1, 4);
@@ -124,9 +124,9 @@ unsigned char DrawMenu(unsigned char menu_select)
                 }
 
                 if (IsSoundEnable() == 0) {
-                        format(buf, PSTR("Р—РІСѓРє     РѕС‚РєР»."));
+                        format(buf, PSTR("Звук     откл."));
                 } else {
-                        format(buf, PSTR("Р—РІСѓРє      РІРєР»."));
+                        format(buf, PSTR("Звук      вкл."));
                 }
 
                 if (menu_select == 3) {
@@ -135,45 +135,45 @@ unsigned char DrawMenu(unsigned char menu_select)
                         LcdString(buf, 1, 5);
                 }
 
-                format(buf, PSTR("РЎР±СЂРѕСЃ  РґРѕР·С‹   "));
+                format(buf, PSTR("Сброс  дозы   "));
                 if (menu_select == 4) {
                         LcdStringInv(buf, 1, 6);
                 } else {
                         LcdString(buf, 1, 6);
                 }
 
-        } else if ((menu_select > 4) && (menu_select < 7)) {  //СЃС‚СЂР°РЅРёС†Р° РјРµРЅСЋ2
+        } else if ((menu_select > 4) && (menu_select < 7)) {  //страница меню2
 
-                format(buf, PSTR("Р§Р°СЃС‹     %2u:  "), ClockGetHours());
+                format(buf, PSTR("Часы     %2u:  "), ClockGetHours());
                 if (menu_select == 5) {
                         LcdStringInv(buf, 1, 3);
                 } else {
                         LcdString(buf, 1, 3);
                 }
 
-                format(buf, PSTR("РњРёРЅСѓС‚С‹     :%2u"), ClockGetMimutes());
+                format(buf, PSTR("Минуты     :%2u"), ClockGetMimutes());
                 if (menu_select == 6) {
                         LcdStringInv(buf, 1, 4);
                 } else {
                         LcdString(buf, 1, 4);
                 }
-        } else {  // СЃС‚СЂР°РЅРёС†Р° РјРµРЅСЋ3
+        } else {  // страница меню3
 
-                format(buf, PSTR("РќР°РєР°С‡РєР° %3uРёРјРї"), SensorGetTicksPeriodik());
+                format(buf, PSTR("Накачка %3uимп"), SensorGetTicksPeriodik());
                 if (menu_select == 7) {
                         LcdStringInv(buf, 1, 3);
                 } else {
                         LcdString(buf, 1, 3);
                 }
 
-                format(buf, PSTR("РџСЂРё РёРјРї.%3uРёРјРї"), SensorGetTicksHit());
+                format(buf, PSTR("При имп.%3uимп"), SensorGetTicksHit());
                 if (menu_select == 8) {
                         LcdStringInv(buf, 1, 4);
                 } else {
                         LcdString(buf, 1, 4);
                 }
 
-                format(buf, PSTR("РРјРїСѓР»СЊСЃ %3uРјРєСЃ"), SensorGetPulseDuration());
+                format(buf, PSTR("Импульс %3uмкс"), SensorGetPulseDuration());
                 if (menu_select == 9) {
                         LcdStringInv(buf, 1, 5);
                 } else {
@@ -213,9 +213,9 @@ void main_window_draw(unsigned char chrg_tick)
 
         format(buf, PSTR("%5u"), SensorGetRadiation(SENSOR_INDEX_MAX + 1));
         LcdStringBold(buf, 1, 2);
-        format(buf, PSTR("РјРєР "));
+        format(buf, PSTR("мкР"));
         LcdString(buf, 12, 2);
-        format(buf, PSTR(" С‡ "));
+        format(buf, PSTR(" ч "));
         LcdString(buf, 12, 3);
         LcdLine(66, 16, 83, 16, 1);
 
@@ -232,11 +232,11 @@ void main_window_draw(unsigned char chrg_tick)
         LcdLine(0, 38, 36, 38, 1);
 
         format(buf, PSTR("%02u:%02u:%02u"), ClockGetHours(), ClockGetMimutes(),
-                        ClockGetSeconds());  //С‡Р°СЃС‹
+                        ClockGetSeconds());  //часы
         LcdString(buf, 1, 1);
         // LcdLine (0,8, 83,8, 1);
 
-//  .Р‘Р°С‚Р°СЂРµР№РєР°
+//  .Батарейка
         if (chrg_tick > 5) {
                 format(buf, PSTR("^ %03u$"), GetCharge());
         } else {
@@ -246,14 +246,14 @@ void main_window_draw(unsigned char chrg_tick)
         LcdString(buf, 9, 1);
 
         if (chrg_tick <= 3) {
-                format(buf, PSTR("Р—Р° С‡Р°СЃ%5luРјРєР "), SensorGetDoseHour());
+                format(buf, PSTR("За час%5luмкР"), SensorGetDoseHour());
         } else if (chrg_tick > 3 && chrg_tick <= 6) {
-                format(buf, PSTR("РЎСѓС‚.%7luРјРєР "), SensorGetDoseDay());
+                format(buf, PSTR("Сут.%7luмкР"), SensorGetDoseDay());
         } else if (chrg_tick > 6) {
-                //(all_doze + day_doze) С‚Р°Рє РєР°Рє РёСЃРїРѕР»СЊР·СѓРµРј РјРєР  РґР»СЏ РґРѕР·С‹, С‚Рѕ РІС‹РґРµР»РёР» 7 СЂР°Р·СЂСЏРґРѕРІ
-                // С‚Рѕ РµСЃС‚СЊ РјР°РєСЃРёРј. РѕС‚РѕР±СЂ. Р·РЅР°С‡РµРЅРёРµ - 9999999 РјРєР , РїСЂРё Р•Р Р¤ - 76 Р»РµС‚ СЂР°Р±РѕС‚С‹ :D, РїСЂРё Р¶РёР·РЅРё РІРѕР·Р»Рµ 4-РіРѕ  Р±Р»РѕРєР° Р§РђР­РЎ - РїРѕР»РіРѕРґР°  РјРёРЅРёРјСѓРј!
+                //(all_doze + day_doze) так как используем мкР для дозы, то выделил 7 разрядов
+                // то есть максим. отобр. значение - 9999999 мкР, при ЕРФ - 76 лет работы :D, при жизни возле 4-го  блока ЧАЭС - полгода  минимум!
                 //
-                format(buf, PSTR("%3uР”%7luРјРєР "), ClockGetDays(),
+                format(buf, PSTR("%3uД%7luмкР"), ClockGetDays(),
                                 SensorGetDoseAll());
         }
         LcdString(buf, 1, 6);
@@ -264,10 +264,10 @@ void main_window_draw(unsigned char chrg_tick)
 extern void DrawIntro()
 {
         LcdClear();
-        format(buf, PSTR("   РњРёРєСЂРѕРЅ-2   "));
+        format(buf, PSTR("   Микрон-2   "));
         LcdStringInv(buf, 1, 3);
         LcdUpdate();
-        format(buf, "Р—Р°РіСЂСѓР·РєР°");
+        format(buf, "Загрузка");
         LcdString(buf, 1, 6);
         LcdUpdate();
 }
@@ -275,7 +275,7 @@ extern void DrawIntro()
 extern void DrawBay()
 {
         LcdClear();
-        format(buf, PSTR("  Р’С‹РєР»СЋС‡РµРЅРёРµ  "));
+        format(buf, PSTR("  Выключение  "));
         LcdStringInv(buf, 1, 3);
         LcdUpdate();
 }
