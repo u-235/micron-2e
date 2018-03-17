@@ -251,10 +251,14 @@ static unsigned char StretchRow(unsigned char row)
 {
         unsigned char retval;
         retval = row & 0x80;
-        retval |= ((row >> 1) & 0x60);
-        retval |= ((row >> 1) & 0x18);
-        retval |= ((row >> 1) & 0x06);
-        retval |= ((row >> 1) & 0x01);
+        row >>= 1;
+        retval |= (row & 0x60);
+        row >>= 1;
+        retval |= (row & 0x18);
+        row >>= 1;
+        retval |= (row & 0x06);
+        row >>= 1;
+        retval |= (row & 0x01);
         return retval;
 }
 
@@ -338,8 +342,8 @@ extern void LcdPixel(lcd_size_t x, lcd_size_t y, unsigned char mode)
 extern void LcdStringEx(char *msg, char opt, lcd_size_t x, lcd_size_t y)
 {
         LcdSetTextPos(x, y);
-        while(*msg != 0) {
-                        LcdChr(*msg++, opt);
+        while (*msg != 0) {
+                LcdChr(*msg++, opt);
         }
 }
 
