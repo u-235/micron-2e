@@ -1,30 +1,17 @@
-/*****************************************************************************
- *
- *  Nokia 3310 display driver
- *  Copyright (C) 2003  Sylvain Bissonnette
- *  Copyright (C) 2010  Aheir, aheir@radiokot.ru
- *  Copyright (C) 2018  Nick Egorrov
- *
- *  This program is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
- *****************************************************************************/
-
 /**
  * \file
  * \brief Драйвер монохромного дисплея.
+ * \author Sylvain Bissonnette
+ * \author Aheir, aheir@radiokot.ru
+ * \author Nick Egorrov
+ * \date 2003-2018
+ * \copyright GNU Public License 3
+ * \bug В функции LcdChr() возможен выход за пределы буфера.
+ * \todo Функцию LcdImage() следует доработать для вывода картинки различного
+ * размера и с произвольной координаты экрана.
+ * \attention Данный драйвер использует буфер в оперативной памяти размером
+ * около 500 байт.
  * \details
- *
  */
 
 #define LCD_MONO_INSIDE_
@@ -32,7 +19,6 @@
 #include "n3310lcd.h"
 #include "pcd8544.h"
 #include "target.h"
-#include "font-8x5-en-rus.h"
 #include "chip.h"
 
 /*************************************************************
@@ -60,34 +46,12 @@
  *#endif
  */
 
-#define LCD_SIZE_HORZ           84	//разрешение экрана
-#define LCD_SIZE_VERT           48
-#define LCD_CELL_SIZE_HORZ      1
-#define LCD_CELL_SIZE_VERT      8
-
-/*************************************************************
- *      Variables
- *************************************************************/
-
-#define LCD_CELL_AT_HORZ        (LCD_SIZE_HORZ/LCD_CELL_SIZE_HORZ)
-#define LCD_CELL_AT_VERT        (LCD_SIZE_VERT/LCD_CELL_SIZE_VERT)
-
-#define LCD_CHAR_SPASE_HORZ     1
-#define LCD_CHAR_SPASE_VERT     0
-#define LCD_CHAR_WIDTH          (FONT_WIDTH + LCD_CHAR_SPASE_HORZ)
-#define LCD_CHAR_HEIGHT         (FONT_HEIGHT + LCD_CHAR_SPASE_VERT)
-#define LCD_CHAR_COLUMN         (LCD_SIZE_HORZ / LCD_CHAR_WIDTH)
-#define LCD_CHAR_LINE           (LCD_SIZE_VERT / LCD_CHAR_HEIGHT)
-
-#define LCD_CACHSIZE            (LCD_CELL_AT_HORZ*LCD_CELL_AT_VERT)
-
 /*************************************************************
  *      Variables
  *************************************************************/
 
 static char ucBuff[LCD_CACHSIZE];
 static lcd_ind_t buffIndex;
-//power-down control: 0 - chip is active, 1 - chip is in PD-mode
 static char fPowerDown = 0;
 
 /*************************************************************
@@ -126,7 +90,6 @@ static void ChipInit()
         LcdClear();
 }
 
-//contrast -> Contrast value from 0x00 to 0x7F
 extern void LcdContrast(unsigned char contrast)
 {
         if (contrast > 0x7F) {
@@ -138,7 +101,6 @@ extern void LcdContrast(unsigned char contrast)
         LcdSend(MAKE_FUNC(FUNC_SET_BASIC | LCD_DIRECTION | FUNC_PWR_ACTIVE));
 }
 
-//режим дисплея: 0 - blank, 1 - all on, 2 - normal, 3 - inverse
 extern void LcdMode(unsigned char mode)
 {
         if (mode > 3) {
@@ -165,7 +127,7 @@ extern char LcdIsPwrDown()
         return fPowerDown;
 }
 
-extern void LcdPwrOff()  //выкл дисплея
+extern void LcdPwrOff()
 {
         LcdClear();
         LcdUpdate();
@@ -174,7 +136,7 @@ extern void LcdPwrOff()  //выкл дисплея
         fPowerDown = 1;
 }
 
-extern void LcdPwrOn()  //вкл дисплея
+extern void LcdPwrOn()
 {
         HardOn();
         ChipInit();
@@ -231,19 +193,20 @@ extern void LcdUpdate()
  */
 extern void LcdClear()
 {
-        int i = LCD_CACHSIZE;
+        lcd_ind_t i = LCD_CACHSIZE;
 
         while (i) {
                 ucBuff[--i] = 0;
         }
 }
 
-//Sets cursor location to xy location. Range: 1,1 .. 14,6
 extern void LcdSetTextPos(lcd_size_t x, lcd_size_t y)
 {
         if (x < LCD_CHAR_COLUMN && y < LCD_CHAR_LINE) {
-                buffIndex = (lcd_ind_t) (y - 1) * LCD_CELL_AT_HORZ
-                                + (x - 1) * LCD_CHAR_WIDTH;
+                buffIndex = (lcd_ind_t) x * LCD_CHAR_WIDTH / LCD_CELL_SIZE_HORZ
+                                + y * LCD_CHAR_HEIGHT * LCD_SIZE_HORZ
+                                                / LCD_CELL_SIZE_HORZ
+                                                / LCD_CELL_SIZE_VERT;
         }
 }
 
@@ -262,7 +225,6 @@ static unsigned char StretchRow(unsigned char row)
         return retval;
 }
 
-//Displays a character at current cursor location and increment cursor location
 extern void LcdChr(char ch, char opt)
 {
         unsigned char i, top, bottom;
@@ -300,18 +262,16 @@ extern void LcdChr(char ch, char opt)
         }
 }
 
-//вывод изображения
 extern void LcdImage(const unsigned char *imageData)
 {
         lcd_ind_t i;
 
         _mode_cmd();
         for (i = 0; i < LCD_CACHSIZE; i++) {
-                ucBuff[i] = imageData[i];  //грузим данные
+                ucBuff[i] = imageData[i];
         }
 }
 
-//Displays a pixel at given absolute (x, y) location, mode -> Off, On or Xor
 extern void LcdPixel(lcd_size_t x, lcd_size_t y, unsigned char mode)
 {
         lcd_ind_t index;
@@ -321,8 +281,8 @@ extern void LcdPixel(lcd_size_t x, lcd_size_t y, unsigned char mode)
                 return;
         }
 
-        index = (lcd_ind_t) y / LCD_CELL_SIZE_VERT * LCD_SIZE_HORZ + x;  //считаем номер байта в массиве памяти дисплея
-        offset = y & 0x03;  //считаем номер бита в этом байте
+        index = (lcd_ind_t) (y / LCD_CELL_SIZE_VERT) * LCD_SIZE_HORZ + x;
+        offset = y % LCD_CELL_SIZE_VERT;
 
         mask = 0x01 << offset;
         if (mode == LCD_PIXEL_OFF) {
@@ -338,7 +298,6 @@ extern void LcdPixel(lcd_size_t x, lcd_size_t y, unsigned char mode)
  *      Level 3 : extends function
  *************************************************************/
 
-//Displays a string at current cursor location
 extern void LcdStringEx(char *msg, char opt, lcd_size_t x, lcd_size_t y)
 {
         LcdSetTextPos(x, y);
@@ -347,7 +306,6 @@ extern void LcdStringEx(char *msg, char opt, lcd_size_t x, lcd_size_t y)
         }
 }
 
-//Draws a line between two points on the display - по Брезенхейму
 extern void LcdLine(lcd_size_t x1, lcd_size_t y1, lcd_size_t x2, lcd_size_t y2,
                 unsigned char mode)
 {
@@ -404,7 +362,6 @@ extern void LcdLine(lcd_size_t x1, lcd_size_t y1, lcd_size_t x2, lcd_size_t y2,
         }
 }
 
-//рисуем круг по координатам с радиусом - по Брезенхейму
 extern void LcdCircle(lcd_size_t x, lcd_size_t y, lcd_size_t radius,
                 unsigned char mode)
 {
@@ -432,7 +389,6 @@ extern void LcdCircle(lcd_size_t x, lcd_size_t y, lcd_size_t radius,
         }
 }
 
-//рисуем прогресс-бар
 extern void LcdBar(lcd_size_t x1, lcd_size_t y1, lcd_size_t x2, lcd_size_t y2,
                 unsigned char persent)
 {
@@ -440,16 +396,16 @@ extern void LcdBar(lcd_size_t x1, lcd_size_t y1, lcd_size_t x2, lcd_size_t y2,
         if (persent > 100) {
                 return;
         }
-        LcdLine(x1 + 2, y2, x2 - 2, y2, 1);  //down
-        LcdLine(x2 - 2, y1, x2 - 2, y2, 1);  //right
-        LcdLine(x1 + 2, y1, x1 + 2, y2, 1);  //left
-        LcdLine(x1 + 2, y1, x2 - 2, y1, 1);  //up
+        LcdLine(x1 + 2, y2, x2 - 2, y2, 1);
+        LcdLine(x2 - 2, y1, x2 - 2, y2, 1);
+        LcdLine(x1 + 2, y1, x1 + 2, y2, 1);
+        LcdLine(x1 + 2, y1, x2 - 2, y1, 1);
 
-        LcdLine(x2 - 1, y1 + 1, x2 - 1, y2 - 1, 1);  //right
-        LcdLine(x1 + 1, y1 + 1, x1 + 1, y2 - 1, 1);  //left
+        LcdLine(x2 - 1, y1 + 1, x2 - 1, y2 - 1, 1);
+        LcdLine(x1 + 1, y1 + 1, x1 + 1, y2 - 1, 1);
 
-        LcdLine(x2, y1 + 2, x2, y2 - 2, 1);  //right
-        LcdLine(x1, y1 + 2, x1, y2 - 2, 1);  //left
+        LcdLine(x2, y1 + 2, x2, y2 - 2, 1);
+        LcdLine(x1, y1 + 2, x1, y2 - 2, 1);
 
         line = persent * (x2 - x1 - 7) / 100 - 1;
         LcdLine(x1 + 4, y1 + 2, x2 - 4, y2 - 2, 0);

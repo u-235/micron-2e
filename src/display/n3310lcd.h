@@ -1,27 +1,62 @@
-/*****************************************************************************
- *
- *  Nokia 3310 display driver
- *  Copyright (C) 2003  Sylvain Bissonnette
- *  Copyright (C) 2010  Aheir, aheir@radiokot.ru
- *  Copyright (C) 2018  Nick Egorrov
- *
- *  This program is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
- *****************************************************************************/
+/**
+ * \file
+ * \brief Драйвер монохромного дисплея.
+ * \author Sylvain Bissonnette
+ * \author Aheir, aheir\radiokot.ru
+ * \author Nick Egorrov
+ * \date 2003-2018
+ * \copyright GNU Public License 3
+ * \details
+ */
 
 #ifndef N3310LCD_H_INCLUDED
 #define N3310LCD_H_INCLUDED
+
+/* Используемый шрифт */
+#include "font-8x5-en-rus.h"
+
+/*************************************************************
+ *      Display parameters
+ *************************************************************/
+
+/** Размер экрана по горизонтали, в точках. */
+#define LCD_SIZE_HORZ           84u
+/** Размер экрана по вертикали, в точках. */
+#define LCD_SIZE_VERT           48u
+/** Размер ячейки экрана по горизонтали. */
+#define LCD_CELL_SIZE_HORZ      1u
+/**
+ * Размер ячейки экрана по вертикали. Ячейка - это область, которую занимает
+ * один байт данных. Для дисплеев на основе pcd8544 этот параметр равен 8.
+ */
+#define LCD_CELL_SIZE_VERT      8u
+/** Количество ячеек по горизонтали. */
+#define LCD_CELL_AT_HORZ        (LCD_SIZE_HORZ/LCD_CELL_SIZE_HORZ)
+/** Количество ячеек по вертикали. */
+#define LCD_CELL_AT_VERT        (LCD_SIZE_VERT/LCD_CELL_SIZE_VERT)
+/** Размер буфера дисплея. */
+#define LCD_CACHSIZE            (LCD_CELL_AT_HORZ*LCD_CELL_AT_VERT)
+/** Дополнительное пространство между символами по горизонтали. */
+#define LCD_CHAR_SPASE_HORZ     1u
+/** Дополнительное пространство между символами по вертикали. */
+#define LCD_CHAR_SPASE_VERT     0u
+/** Ширина символов по горизонтали с учётом дополнительного интервала. */
+#define LCD_CHAR_WIDTH          (FONT_WIDTH + LCD_CHAR_SPASE_HORZ)
+/** Ширина символов по вертикали с учётом дополнительного интервала. */
+#define LCD_CHAR_HEIGHT         (FONT_HEIGHT + LCD_CHAR_SPASE_VERT)
+/**
+ * Количество символов, которое может вместить одна строка на экране при
+ * использовании одинарной ширины символов.
+ */
+#define LCD_CHAR_COLUMN         (LCD_SIZE_HORZ / LCD_CHAR_WIDTH)
+/**
+ * Количество строк на экране при использовании одинарной высоты символов.
+ */
+#define LCD_CHAR_LINE           (LCD_SIZE_VERT / LCD_CHAR_HEIGHT)
+
+/*************************************************************
+ *      data types
+ *************************************************************/
 
 /**
  * Тип для задания координат экрана без знака. Этот тип используется для
@@ -34,9 +69,14 @@ typedef unsigned char lcd_size_t;
  */
 typedef signed char lcd_pos_t;
 /**
- * Тип для индексирования внутреннего буфера драйвера.
+ * Тип для индексирования внутреннего буфера драйвера. Этот тип должен вмещать
+ * в себя LCD_CACHSIZE.
  */
 typedef unsigned int lcd_ind_t;
+
+/*************************************************************
+ *      macro
+ *************************************************************/
 
 /**
  * \def LCD_MODE_BLANK
@@ -64,7 +104,7 @@ typedef unsigned int lcd_ind_t;
  * Способ рисования графики - пиксели устанавливаются.
  *
  * \def LCD_PIXEL_XOR
- * Способ рисования графики - пиксель устанавливается если до рисования это
+ * Способ рисования графики - пиксель устанавливается, если до рисования этот
  * пиксель сброшен. Иначе пиксель сбрасывается.
  */
 #define LCD_PIXEL_OFF       0
@@ -135,50 +175,141 @@ extern void LcdClear();
 
 /**
  * Установка позиции вывода символа.
- * \param x Позиция по горизонтали в диапазоне от 0 до 13 включительно.
- * \param y Позиция по вертикали в диапазоне от 0 до 5 включительно.
+ * \param x Позиция по горизонтали в диапазоне от 0 до LCD_CHAR_COLUMN-1
+ *  включительно.
+ * \param y Позиция по вертикали в диапазоне от 0 до LCD_CHAR_LINE-1
+ *  включительно.
  */
 extern void LcdSetTextPos(lcd_size_t x, lcd_size_t y);
 
 /**
  * Вывод символа в текущей позиции.
- * \param ch Выводимый символ. Кодировка зависит от применяемого файла.
+ * \param ch Выводимый символ. Кодировка зависит от применяемого файла шрифтов.
  * \param opt Опции вывода, может быть любой комбинацией флагов
- *       #LCD_TEXT_NEGATIVE, #LCD_TEXT_WIDE или #LCD_TEXT_HIGH
+ *       #LCD_TEXT_NEGATIVE, #LCD_TEXT_WIDE или #LCD_TEXT_HIGH.
  */
 extern void LcdChr(char ch, char opt);
 
-//вывод изображения
+/**
+ * Вывод изображения.
+ * \param imageData Массив со снимком экрана.
+ */
 extern void LcdImage(const unsigned char *imageData);
 
-//Displays a pixel at given absolute (x, y) location, mode -> Off, On or Xor
+/**
+ * Рисование точки.
+ * \param x Позиция по горизонтали от нуля до #LCD_SIZE_HORZ - 1
+ * \param y Позиция по вертикали от нуля до #LCD_SIZE_VERT - 1
+ * \param mode Режим рисования пикселя, может быть одним из #LCD_PIXEL_OFF,
+ *  #LCD_PIXEL_ON или #LCD_PIXEL_XOR
+ */
 extern void LcdPixel(lcd_size_t x, lcd_size_t y, unsigned char mode);
 
-//Displays a string at current cursor location
+/**
+ * \brief Вывод текста.
+ * \details
+ * \param msg Указатель на строку в оперативной памяти.
+ * \param opt Опции вывода, может быть любой комбинацией флагов
+ *       #LCD_TEXT_NEGATIVE, #LCD_TEXT_WIDE или #LCD_TEXT_HIGH.
+ * \param x Позиция по горизонтали в диапазоне от 0 до #LCD_CHAR_COLUMN - 1
+ *  включительно.
+ * \param y Позиция по вертикали в диапазоне от 0 до #LCD_CHAR_LINE - 1
+ *  включительно.
+ */
 extern void LcdStringEx(char *msg, char opt, lcd_size_t x, lcd_size_t y);
 
+#ifdef __DOXYGEN__
+/**
+ * Вывод строки в обычном виде.
+ * \param msg Указатель на строку в оперативной памяти.
+ * \param x Позиция по горизонтали в диапазоне от 0 до #LCD_CHAR_COLUMN - 1
+ *  включительно.
+ * \param y Позиция по вертикали в диапазоне от 0 до #LCD_CHAR_LINE - 1
+ *  включительно.
+ */
+extern void LcdString(char *msg, lcd_size_t x, lcd_size_t y);
+
+/**
+ * Вывод строки с инверсией.
+ * \param msg Указатель на строку в оперативной памяти.
+ * \param x Позиция по горизонтали в диапазоне от 0 до #LCD_CHAR_COLUMN - 1
+ *  включительно.
+ * \param y Позиция по вертикали в диапазоне от 0 до #LCD_CHAR_LINE - 1
+ *  включительно.
+ */
+extern void LcdStringInv(char *msg, lcd_size_t x, lcd_size_t y);
+
+/**
+ * Вывод строки высоким и широким шрифтом в обычном виде.
+ * \param msg Указатель на строку в оперативной памяти.
+ * \param x Позиция по горизонтали в диапазоне от 0 до #LCD_CHAR_COLUMN/2 - 1
+ *  включительно.
+ * \param y Позиция по вертикали в диапазоне от 0 до #LCD_CHAR_LINE/2 - 1
+ *  включительно.
+ */
+extern void LcdStringBold(char *msg, lcd_size_t x, lcd_size_t y);
+
+/**
+ * Вывод строки высоким и широким шрифтом с инверсией.
+ * \param msg Указатель на строку в оперативной памяти.
+ * \param x Позиция по горизонтали в диапазоне от 0 до #LCD_CHAR_COLUMN/2 - 1
+ *  включительно.
+ * \param y Позиция по вертикали в диапазоне от 0 до #LCD_CHAR_LINE/2 - 1
+ *  включительно.
+ */
+extern void LcdStringBoldInv(char *msg, lcd_size_t x, lcd_size_t y);
+
+/**
+ * Вывод строки высоким шрифтом в обычном виде.
+ * \param msg Указатель на строку в оперативной памяти.
+ * \param x Позиция по горизонтали в диапазоне от 0 до #LCD_CHAR_COLUMN - 1
+ *  включительно.
+ * \param y Позиция по вертикали в диапазоне от 0 до #LCD_CHAR_LINE/2 - 1
+ *  включительно.
+ */
+extern void LcdStringBig(char *msg, lcd_size_t x, lcd_size_t y);
+#else /* real */
 #define LcdString(msg, x, y) LcdStringEx(msg, 0,x, y)
-
 #define LcdStringInv(msg, x, y) LcdStringEx(msg, LCD_TEXT_NEGATIVE,x, y)
-
 #define LcdStringBold(msg, x, y) \
         LcdStringEx(msg, LCD_TEXT_WIDE | LCD_TEXT_HIGH,x, y)
-
 #define LcdStringBoldInv(msg, x, y) \
         LcdStringEx(msg, LCD_TEXT_WIDE | LCD_TEXT_HIGH | LCD_TEXT_NEGATIVE,x, y)
-
 #define LcdStringBig(msg, x, y) \
         LcdStringEx(msg, LCD_TEXT_HIGH,x, y)
+#endif
 
-//Draws a line between two points on the display
+/**
+ * Рисование линии между двух точек.
+ * \param x1 Позиция первой точки по горизонтали от нуля до #LCD_SIZE_HORZ - 1
+ * \param y1 Позиция первой точки по вертикали от нуля до #LCD_SIZE_VERT - 1
+ * \param x2 Позиция второй точки по горизонтали от нуля до #LCD_SIZE_HORZ - 1
+ * \param y2 Позиция второй точки по вертикали от нуля до #LCD_SIZE_VERT - 1
+ * \param mode Режим рисования пикселя, может быть одним из #LCD_PIXEL_OFF,
+ *  #LCD_PIXEL_ON или #LCD_PIXEL_XOR
+ */
 extern void LcdLine(lcd_size_t x1, lcd_size_t y1, lcd_size_t x2, lcd_size_t y2,
                 unsigned char mode);
 
-//рисуем круг с координатами центра и радиусом
+/**
+ * Рисование круга.
+ * \param x Позиция центра круга по горизонтали от нуля до #LCD_SIZE_HORZ - 1
+ * \param y Позиция центра круга по вертикали от нуля до #LCD_SIZE_VERT - 1
+ * \param radius Радиус круга.
+ * \param mode Режим рисования пикселя, может быть одним из #LCD_PIXEL_OFF,
+ *  #LCD_PIXEL_ON или #LCD_PIXEL_XOR
+ */
 extern void LcdCircle(lcd_size_t x, lcd_size_t y, lcd_size_t radius,
                 unsigned char mode);
 
-// рисует прогресс-бар и заполняет его на "процент"
+/**
+ * Рисование прогресс-бара с заполнением его на "процент".
+ * \param x1 Позиция первой точки по горизонтали от нуля до #LCD_SIZE_HORZ - 1
+ * \param y1 Позиция первой точки по вертикали от нуля до #LCD_SIZE_VERT - 1
+ * \param x2 Позиция второй точки по горизонтали от нуля до #LCD_SIZE_HORZ - 1
+ * \param y2 Позиция второй точки по вертикали от нуля до #LCD_SIZE_VERT - 1
+ * \param persent Процент заполнения.
+ */
 extern void LcdBar(lcd_size_t x1, lcd_size_t y1, lcd_size_t x2, lcd_size_t y2,
                 unsigned char persent);
 
