@@ -1,36 +1,16 @@
-/*****************************************************************************
- *
- *  micron 2 v 1.2.6
- *  Copyright (C) 2018  Nick Egorrov
- *
- *  This program is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
- *****************************************************************************/
-
 /**
  * \file
  * \brief
  * \details
  *
+ * \author Nick Egorrov
  * \date created on: 24.02.2018
- * \author: nick
+ * \copyright GNU Public License 3
  */
 
 #include "compiller.h"
 #include "config.h"
 #include HEADER_IO
-#include HEADER_DELAY
 #include "sensor.h"
 
 static unsigned char event = 0;
@@ -38,6 +18,20 @@ static unsigned char second_tick = 0;
 static unsigned char minute_tick = 0;
 static unsigned char hour_tick = 0;
 static unsigned int days = 0;
+
+extern void InitClock()
+{
+        /* Асинхронный режим работы
+         * Пределитель = 128
+         * 32768 Hz / 128 / 256 = переполнение раз за секунду
+         * Прерывания по переполнению
+         */
+        ASSR = (1 << AS2);
+        TCNT2 = 0;
+        OCR2 = 0;
+        TCCR2 |= (1 << CS22) | (1 << CS20);
+        TIMSK |= (1 <<  TOIE2);
+}
 
 extern unsigned char ClockGetEvent()
 {
@@ -51,19 +45,21 @@ extern unsigned char ClockGetSeconds()
         return second_tick;
 }
 
-extern char ClockSetSeconds(unsigned char s)
+extern unsigned char ClockSetSeconds(unsigned char s)
 {
-        second_tick = s;
-        if (second_tick > 59) {
-                second_tick = 0;
-                return -1;
+        if (s < 60) {
+                second_tick = s;
         }
-        return 0;
+        return second_tick;
 }
 
-extern char ClockIncSeconds()
+extern unsigned char ClockIncSeconds()
 {
-        return ClockSetSeconds(second_tick + 1);
+        second_tick++;
+        if (second_tick >= 60) {
+                second_tick = 0;
+        }
+        return second_tick;
 }
 
 extern unsigned char ClockGetMimutes()
@@ -71,38 +67,43 @@ extern unsigned char ClockGetMimutes()
         return minute_tick;
 }
 
-extern char ClockSetMinutes(unsigned char m)
+extern unsigned char ClockSetMinutes(unsigned char m)
 {
-        minute_tick = m;
-        if (minute_tick > 59) {
-                minute_tick = 0;
-                return -1;
+        if (m < 60) {
+                minute_tick = m;
         }
-        return 0;
+        return minute_tick;
 }
 
-extern char ClockIncMinutes()
+extern unsigned char ClockIncMinutes()
 {
-        return ClockSetMinutes(minute_tick + 1);
+        minute_tick++;
+        if (minute_tick >= 60) {
+                minute_tick = 0;
+        }
+        return minute_tick;
 }
 
 extern unsigned char ClockGetHours()
 {
         return hour_tick;
 }
-extern char ClockSetHours(unsigned char h)
+
+extern unsigned char ClockSetHours(unsigned char h)
 {
-        hour_tick = h;
-        if (hour_tick > 23) {
-                hour_tick = 0;
-                return -1;
+        if (h < 24) {
+                hour_tick = h;
         }
-        return 0;
+        return hour_tick;
 }
 
-extern char ClockIncHours()
+extern unsigned char ClockIncHours()
 {
-        return ClockSetHours(hour_tick + 1);
+        hour_tick++;
+        if (hour_tick >= 24) {
+                hour_tick = 0;
+        }
+        return hour_tick;
 }
 
 extern unsigned int ClockGetDays()
@@ -122,11 +123,11 @@ _isr_timer2_ovf(void)
 {
         event |= CLOCK_EVENT_SECOND;
 
-        if (ClockIncSeconds() != 0) {
+        if (ClockIncSeconds() == 0) {
                 event |= CLOCK_EVENT_MINUTE;
-                if (ClockIncMinutes() != 0) {
+                if (ClockIncMinutes() == 0) {
                         event |= CLOCK_EVENT_HOUR;
-                        if (ClockIncHours() != 0) {
+                        if (ClockIncHours() == 0) {
                                 event |= CLOCK_EVENT_DAY;
                                 days++;
                         }

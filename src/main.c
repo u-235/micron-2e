@@ -52,12 +52,13 @@ void main(void)
         InitHard();
         InitPower();
         InitAlarm();
+        InitClock();
 
         //beep_pin = 0;
         _pin_off(OUT_BEEPER);
         SetMenuActive(0);
         led_refresh(2);
-        LcdPwrOff();
+        LcdInit();
         delay_ms(100);
         led_refresh(2);
         delay_ms(100);
@@ -231,17 +232,8 @@ static void InitHard()
         OCR1BH = 0x00;
         OCR1BL = 0x00;
 
-        ASSR = (1 << AS2);
         // Даем немного времени для стабилизации работы генератора
         delay_ms(1000);
-        // 3. Записываем новые значения TCNT2, OCR2x, and TCCR2B.
-        TCNT2 = 0;
-        /* устанавливаем пределитель = 128
-         32.768 kHz / 128 / 256 = переполнение раз за секунду. */
-        TCCR2 |= (1 << CS22) | (1 << CS20);
-
-        TIMSK = 0x40;
-        TIMSK |= (1 << OCIE2);  // разрешаем прерывание по совпадению Т2
 
         GICR = 0xC0;
         MCUCR = 0xB0;
