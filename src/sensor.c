@@ -20,8 +20,6 @@
 
 #include "compiller.h"
 #include "config.h"
-#include HEADER_IO
-#include HEADER_DELAY
 #include "power.h"
 #include "sensor.h"
 #include "alarm.h"
@@ -50,80 +48,88 @@ static unsigned char impHits;
 static unsigned int impCounter;
 static unsigned int impulse_massive[SENSOR_INDEX_MAX + 1];
 
-static unsigned long dose_hour = 0;
-static unsigned long dose_day = 0;
-static unsigned long dose_all = 0;
+static unsigned long doseHour = 0;
+static unsigned long doseDay = 0;
+static unsigned long doseAll = 0;
 /* Масштабный коэффициент для вычисления относительных уровней радиации в
  * SensorGetLevel(). Равен самому большому значению в массиве.
  */
 static unsigned int scale = 6;
 
-/* Длительность положительнного импульса накачки, рабочее значение */
-static unsigned char pulse_duration;
-/* Количество импульсов принудительной накачки, рабочее значение */
-static unsigned int ticks_periodic;
-/* Количество импульсов накачки при сработке датчика, рабочее значение */
-static unsigned int ticks_hit;
+/* Длительность положительнного импульса накачки, рабочее значение. */
+static unsigned char pulseDuration;
+/* Количество импульсов принудительной накачки, рабочее значение. */
+static unsigned int ticksPeriodic;
+/* Количество импульсов накачки при сработке датчика, рабочее значение. */
+static unsigned int ticksHit;
 
 /*************************************************************
  *      Variable in EEPROM
  *************************************************************/
 
-/* Длительность положительнного импульса накачки, настройка */
-static eeprom unsigned char ee_pulse_duration = PUMP_PULSE_WIDTH_DEFAULT;
-/* Количество импульсов принудительной накачки, настройка */
-static eeprom unsigned int ee_ticks_periodic = PUMP_TICKS_PERIODIK_DEFAULT;
-/* Количество импульсов накачки при сработке датчика, настройка */
-static eeprom unsigned int ee_ticks_hit = PUMP_TICKS_HIT_DEFAULT;
+/* Длительность положительнного импульса накачки, настройка. */
+static eeprom unsigned char eePulseDuration = PUMP_PULSE_WIDTH_DEFAULT;
+/* Количество импульсов принудительной накачки, настройка. */
+static eeprom unsigned int eeTicksPeriodic = PUMP_TICKS_PERIODIK_DEFAULT;
+/* Количество импульсов накачки при сработке датчика, настройка. */
+static eeprom unsigned int eeTicksHit = PUMP_TICKS_HIT_DEFAULT;
 
 /*************************************************************
  *      Public function
  *************************************************************/
 
-extern void InitSensor(){
+extern void InitSensor()
+{
+        pulseDuration = _eemem_read8(&eePulseDuration);
+        ticksPeriodic = _eemem_read16(&eeTicksPeriodic);
+        ticksHit = _eemem_read16(&eeTicksHit);
+        CalculatePump(GetVoltage());
         RunCharge(6000);
 }
 
 extern unsigned char SensorGetPulseDuration()
 {
-        return ee_pulse_duration;
+        return pulseDuration;
 }
 
 extern void SensorIncPulseDuration()
 {
-        unsigned char pulse = ee_pulse_duration + 1;
+        unsigned char pulse = pulseDuration + 1;
         if (pulse > PUMP_PULSE_WIDTH_MAX) {
                 pulse = PUMP_PULSE_WIDTH_MIN;
         }
-        ee_pulse_duration = pulse;
+        pulseDuration = pulse;
+        _eemem_write8(&eePulseDuration, pulse);
 }
 
 extern unsigned int SensorGetTicksPeriodik()
 {
-        return ee_ticks_periodic;
+        return ticksPeriodic;
 }
 
 extern void SensorIncTicksPeriodik()
 {
-        unsigned int ticks = ee_ticks_periodic + 1;
+        unsigned int ticks = ticksPeriodic + 1;
         if (ticks > PUMP_TICKS_PERIODIK_MAX) {
                 ticks = PUMP_TICKS_PERIODIK_MIN;
         }
-        ee_ticks_periodic = ticks;
+        ticksPeriodic = ticks;
+        _eemem_write16(&eeTicksPeriodic, ticks);
 }
 
 extern unsigned int SensorGetTicksHit()
 {
-        return ee_ticks_hit;
+        return ticksHit;
 }
 
 extern void SensorIncTicksHit()
 {
-        unsigned int ticks = ee_ticks_hit + 1;
+        unsigned int ticks = ticksHit + 1;
         if (ticks > PUMP_TICKS_HIT_MAX) {
                 ticks = PUMP_TICKS_HIT_MIN;
         }
-        ee_ticks_hit = ticks;
+        ticksHit = ticks;
+        _eemem_write16(&eeTicksHit, ticks);
 }
 
 extern unsigned int SensorGetRadiation(unsigned char period)
@@ -140,30 +146,30 @@ extern unsigned int SensorGetRadiation(unsigned char period)
         for (i = 0; i <= period; i++) {
                 retval += impulse_massive[i];
         }
-        /* Не люблю магию, но тут 3600 - это количество секунд в часе */
+        /* Не люблю магию, но тут 3600 - это количество секунд в часе. */
         return retval / (period + 1) * (3600 / SENSOR_SENSITIVITY);
 }
 
 extern unsigned long SensorGetDoseHour()
 {
-        return dose_hour / SENSOR_SENSITIVITY;
+        return doseHour / SENSOR_SENSITIVITY;
 }
 
 extern unsigned long SensorGetDoseDay()
 {
-        return dose_day + dose_hour / SENSOR_SENSITIVITY;
+        return doseDay + doseHour / SENSOR_SENSITIVITY;
 }
 
 extern unsigned long SensorGetDoseAll()
 {
-        return dose_all + dose_day + dose_hour / SENSOR_SENSITIVITY;
+        return doseAll + doseDay + doseHour / SENSOR_SENSITIVITY;
 }
 
 extern void SensorClearDose()
 {
-        dose_hour = 0;
-        dose_day = 0;
-        dose_all = 0;
+        doseHour = 0;
+        doseDay = 0;
+        doseAll = 0;
 }
 
 extern unsigned char SensorGetRelative(unsigned char index)
@@ -178,6 +184,11 @@ extern unsigned char SensorIsHit()
         impHits = 0;
         return retval;
 }
+
+/* Количество импульсов принудительной накачки, вычисленное значение. */
+static unsigned int realTicksPeriodic;
+/* Количество импульсов накачки при сработке датчика, вычисленное значение. */
+static unsigned int realTicksHit;
 
 extern void SensorClockEvent(unsigned char event)
 {
@@ -207,8 +218,8 @@ extern void SensorClockEvent(unsigned char event)
                 GICR = 0x00;
                 /* TODO remove led flash */
                 led_refresh(0);
-                RunCharge(ticks_periodic);
-                delay_us(25);   //25
+                RunCharge(realTicksPeriodic);
+                delay_us(25);  //25
                 led_refresh(1);
                 GICR = 0xC0;
         }
@@ -218,13 +229,13 @@ extern void SensorClockEvent(unsigned char event)
                 // 60сек * 60мин / 36 = 100. так проще для МК
                 // вот здесь я ввел дополнительную переменную для почасовой дозы.
                 // наверное, таким образом баг и починился :D
-                dose_day += dose_hour / 100;
-                dose_hour = 0;
+                doseDay += doseHour / 100;
+                doseHour = 0;
         }
 
         if (event & CLOCK_EVENT_DAY) {
-                dose_all += dose_day;
-                dose_day = 0;
+                doseAll += doseDay;
+                doseDay = 0;
         }
 }
 
@@ -236,10 +247,10 @@ _isr_ext1(void)
 {
         /* TODO Оно тут надо? */
         _pin_off(OUT_BEEPER);
-        RunCharge(ticks_hit);
+        RunCharge(realTicksHit);
         impHits = 1;
         impCounter++;
-        dose_hour++;
+        doseHour++;
         _wdr();
         /* TODO Нужно улучшить - отслеживать состояние на входе INT1 */
         delay_us(1);
@@ -252,15 +263,14 @@ _isr_ext1(void)
 static void CalculatePump(unsigned int voltage)
 {
 #ifdef POWER_LION
-        ticks_hit = (POWER_VOLTAGE_HIGH - SWITCH_DROP_VOLTAGE) * ee_ticks_hit
+        realTicksHit = (POWER_VOLTAGE_HIGH - SWITCH_DROP_VOLTAGE) * ticksHit
                         / (voltage - SWITCH_DROP_VOLTAGE);
-        ticks_periodic = (POWER_VOLTAGE_HIGH - SWITCH_DROP_VOLTAGE)
-                        * ee_ticks_periodic / (voltage - SWITCH_DROP_VOLTAGE);
+        realTicksPeriodic = (POWER_VOLTAGE_HIGH - SWITCH_DROP_VOLTAGE)
+                        * ticksPeriodic / (voltage - SWITCH_DROP_VOLTAGE);
 #else // not lithium
-        ticks_hit = ee_ticks_hit;
-        ticks_periodic=ee_ticks_periodic;
+        realTicksHit = ticksHit;
+        realTicksPeriodic = ticksPeriodic;
 #endif
-        pulse_duration = ee_pulse_duration;
 }
 
 static void RunCharge(unsigned int ticks)
@@ -269,7 +279,7 @@ static void RunCharge(unsigned int ticks)
 
         for (i = 0; i < ticks; i++) {
                 _pin_on(OUT_PUMP_SWITCH);
-                for (j = pulse_duration; j > 0; j--) {
+                for (j = pulseDuration; j > 0; j--) {
                         _nop();
                 }
                 _pin_off(OUT_PUMP_SWITCH);

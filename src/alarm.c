@@ -29,8 +29,6 @@
 
 #include "compiller.h"
 #include "config.h"
-#include HEADER_IO
-#include HEADER_DELAY
 #include "clock.h"
 #include "sensor.h"
 #include "alarm.h"
@@ -49,18 +47,22 @@ static struct _aFlags {
         unsigned char black_light_enable :1;
 } flags;
 
-static eeprom char sound_eep = 1;
-static eeprom int alarm_level = 50;         // при каком уровне включать тревогу
+static eeprom char eeSoundEnable = 1;
+static eeprom int eeAlarmLevel = 50;  // при каком уровне включать тревогу
+static int alarmLevel;
 
 extern void InitAlarm()
 {
-        SetSoundEnable(sound_eep);
+        TCCR0 = 0x05;
+        TCNT0 = 0xFF;
+        flags.sound_enable = _eemem_read8(&eeSoundEnable);
+        alarmLevel = _eemem_read16(&eeAlarmLevel);
         flags.beep = 0;
 }
 
 extern unsigned int GetAlarmLevel()
 {
-        return alarm_level;
+        return alarmLevel;
 }
 
 extern void SetAlarmLevel(unsigned int lvl)
@@ -68,21 +70,22 @@ extern void SetAlarmLevel(unsigned int lvl)
         if (lvl > 9999) {
                 lvl = 0;
         }
-        alarm_level = lvl;
+        alarmLevel = lvl;
+        _eemem_write16(&eeAlarmLevel, lvl);
 }
 
 extern void IncAlarmLevel()
 {
-        if (alarm_level >= 1000) {
-                alarm_level += 1000;
-                if (alarm_level > 9999) {
-                        alarm_level = 0;
-                }
-        } else if (alarm_level >= 100) {
-                alarm_level += 100;
+        unsigned int lvl = alarmLevel;
+
+        if (lvl >= 1000) {
+                lvl += 1000;
+        } else if (lvl >= 100) {
+                lvl += 100;
         } else {
-                alarm_level += 25;
+                lvl += 25;
         }
+        SetAlarmLevel(lvl);
 }
 
 extern char IsAlarm()
@@ -108,7 +111,7 @@ extern char IsSoundEnable()
 extern void SetSoundEnable(char on)
 {
         flags.sound_enable = on;
-        sound_eep = on;
+        _eemem_write8(&eeSoundEnable, on);
 }
 
 extern void AsyncBeep(char on)
@@ -158,8 +161,8 @@ extern void CheckAlarm()
 {
         unsigned int impulse_count = SensorGetRadiation(SENSOR_INDEX_MAX + 1);
 
-        if ((impulse_count > alarm_level) && (!flags.user_cancel_alarm)
-                        && (alarm_level > 0)) {
+        if ((impulse_count > alarmLevel) && (!flags.user_cancel_alarm)
+                        && (alarmLevel > 0)) {
                 flags.beep = 1;
                 TIMSK = 0x41;
                 led_refresh(2);
@@ -168,7 +171,7 @@ extern void CheckAlarm()
                 flags.alarm = 1;
 
         }
-        if ((impulse_count < alarm_level) || (alarm_level == 0)) {
+        if ((impulse_count < alarmLevel) || (alarmLevel == 0)) {
                 if (flags.alarm) {
                         flags.alarm = 0;
                         flags.user_cancel_alarm = 0;

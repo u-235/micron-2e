@@ -34,14 +34,16 @@
 extern "C" {
 #endif
 
-/*************************************************************
- *      Header for MCU and utils
- *************************************************************/
+        /*************************************************************
+         *      Header for MCU and utils
+         *************************************************************/
 
 #ifdef __GNUC__
         /* GCC */
-#define HEADER_IO <avr/io.h>
-#define HEADER_DELAY <util/delay.h>
+#include <avr/io.h>
+#include <avr/pgmspace.h>
+#include <avr/eeprom.h>
+#include <util/delay.h>
 #define delay_ms _delay_ms
 #define delay_us _delay_us
 
@@ -50,26 +52,32 @@ extern "C" {
 #ifndef _IO_BITS_DEFINITIONS_
 #define _IO_BITS_DEFINITIONS_
 #endif
-#define HEADER_IO <io.h>
-#define HEADER_DELAY <delay.h>
+#include <io.h>
+#include <delay.h>
 
 #elif defined __ICCAVR__
         /* IAR AVR */
 #ifndef ENABLE_BIT_DEFINITIONS
 #define ENABLE_BIT_DEFINITIONS
 #endif
-#define HEADER_IO <ioavr.h>
-#define HEADER_DELAY <delay.h>
+#include <ioavr.h>
 
-#warning not shur about headers
+#ifndef F_CPU
+# warning "F_CPU not defined for calculate delays"
+# define F_CPU 8000000UL
+#endif
+
+#define delay_ms(ms)    __delay_cycles(F_CPU/1000UL*ms)
+#define delay_us(us)    __delay_cycles(F_CPU/1000000UL*us)
+
 #else
         /* Неизвестный компилятор */
 #error unknown compiller
 #endif
 
-/*************************************************************
- *      Inline assembler
- *************************************************************/
+        /*************************************************************
+         *      Inline assembler
+         *************************************************************/
 
 #ifdef __GNUC__
         /* GCC */
@@ -89,43 +97,58 @@ extern "C" {
 
 #elif defined __ICCAVR__
         /* IAR AVR */
-#define _sei(nu) asm("sei")
-#define _cli(nu) asm("cli")
-#define _wdr(nu) asm("wdr")
-#define _nop(nu) asm("nop")
-#define _sleep(nu) asm("sleep")
+#define _sei    __enable_interrupt
+#define _cli    __disable_interrupt
+#define _wdr    __watchdog_reset
+#define _nop    __no_operation
+#define _sleep  __sleep
 #endif
 
-/*************************************************************
- *      Data in programm space and EEPROM
- *************************************************************/
+        /*************************************************************
+         *      Data in programm space and EEPROM
+         *************************************************************/
 
 #ifdef __GNUC__
         /* GCC */
-#include <avr/pgmspace.h>
-#define flash const PROGMEM //__flash
+#define flash __flash
 
 #define format sprintf_P
 
-#include <avr/eeprom.h>
 #define eeprom EEMEM
+#define _eemem_read8(a) eeprom_read_byte((uint8_t*)a)
+#define _eemem_read16(a) eeprom_read_word((uint16_t*)a)
+#define _eemem_write8(a, v) eeprom_write_byte((uint8_t*)a, v)
+#define _eemem_write16(a, v) eeprom_write_word((uint16_t*)a, v)
 
 #elif defined __CODEVISIONAVR__
 #define PSTR(s) ((flash char *)(s))
 
 #define format sprintf
 
+#define _eemem_read8(a) (*((eeprom char*)a))
+#define _eemem_read16(a) (*((eeprom int*)a))
+#define _eemem_write8(a, v) {*((eeprom char*)a)=v;}
+#define _eemem_write16(a, v) {*((eeprom int*)a)=v;}
+
 #elif defined __ICCAVR__
         /* IAR AVR */
+#define flash __flash
+
 #define PSTR(s) ((flash char *)(s))
 
 #define format sprintf
 
+#define eeprom __eeprom
+#define _eemem_read8(a) ((eeprom char)*a)
+#define _eemem_read16(a) ((eeprom int)*a)
+#define _eemem_write8(a, v) {(eeprom char)*a=v;}
+#define _eemem_write16(a, v) {(eeprom int)*a=v;}
+
 #endif
 
-/*************************************************************
- *      Interrupts
- *************************************************************/
+        /*************************************************************
+         *      Interrupts
+         *************************************************************/
 
 #ifdef __GNUC__
         /* GCC */
@@ -149,19 +172,19 @@ extern "C" {
 
 #define _isr_adc(nu)        __interrupt void voidadc_isr(void)
 #pragma vector=ADC_vect
-_isr_adc(void);
+        _isr_adc(void);
 #define _isr_ext0(nu)       __interrupt void ext_int0_isr(void)
 #pragma vector=INT0_vect
-_isr_ext0(void);
+        _isr_ext0(void);
 #define _isr_ext1(nu)       __interrupt void ext_int1_isr(void)
 #pragma vector=INT1_vect
-_isr_ext1(void);
+        _isr_ext1(void);
 #define _isr_timer0_ovf(nu) __interrupt void timer0_ovf_isr(void)
 #pragma vector=TIMER0_OVF_vect
-_isr_timer0_ovf(void);
+        _isr_timer0_ovf(void);
 #define _isr_timer2_ovf(nu) __interrupt void timer2_comp_ovf(void)
 #pragma vector=TIMER2_OVF_vect
-_isr_timer2_ovf(void);
+        _isr_timer2_ovf(void);
 
 #warning not sure about interrupts
 #else

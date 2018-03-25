@@ -20,8 +20,6 @@
 
 #include "compiller.h"
 #include "config.h"
-#include HEADER_IO
-#include HEADER_DELAY
 #include <stdio.h>
 #include "alarm.h"
 #include "clock.h"
@@ -34,7 +32,8 @@ static struct _mFlags {
         unsigned char need_update :1;
 } flags;
 
-static char buf[15];                //текстовый буфер для вывода на LCD
+/* Текстовый буфер для вывода на LCD */
+static char buf[15];
 
 extern char IsMenuActive()
 {

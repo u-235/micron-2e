@@ -10,7 +10,6 @@
 
 #include "compiller.h"
 #include "config.h"
-#include HEADER_IO
 #include "sensor.h"
 
 static unsigned char event = 0;

@@ -20,8 +20,6 @@
 
 #include "compiller.h"
 #include "config.h"
-#include HEADER_IO
-#include HEADER_DELAY
 #include <stdio.h>
 #include "clock.h"
 #include "sensor.h"
@@ -218,8 +216,6 @@ static void InitHard()
         WDTCR = 0x1F;
         WDTCR = 0x0F;
         _cli();
-        TCCR0 = 0x05;
-        TCNT0 = 0xFF;
 
         TCCR1A = 0x00;
         TCCR1B = 0x00;

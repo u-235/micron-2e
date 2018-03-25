@@ -32,7 +32,5 @@
 
 #include "../compiller.h"
 #include "../config.h"
-#include HEADER_IO
-#include HEADER_DELAY
 
 #endif /* DISPLAY_TARGET_H_ */

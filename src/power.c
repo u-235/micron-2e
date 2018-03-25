@@ -29,9 +29,6 @@
 
 #include "compiller.h"
 #include "config.h"
-#include HEADER_IO
-#include HEADER_DELAY
-#include <stdio.h>
 #include "alarm.h"
 #include "display/n3310lcd.h"
 #include "screens.h"
@@ -43,13 +40,13 @@ static void ReadADC();
 
 static unsigned char btrPercent = 0;
 static unsigned int btrVoltage = 0;
-static unsigned int sleepTime;          // Через сколько секунд засыпать
+static unsigned int sleepTime;  // Через сколько секунд засыпать
 
-static eeprom unsigned int eeSleepTime = 30;    // Через сколько секунд засыпать
+static eeprom unsigned int eeSleepTime = 30;  // Через сколько секунд засыпать
 
 extern void InitPower()
 {
-        sleepTime = eeSleepTime;
+        sleepTime = _eemem_read16(&eeSleepTime);
 }
 
 extern unsigned int GetSleepTime()
@@ -63,18 +60,18 @@ extern void SetSleepTime(unsigned int tm)
                 tm = 0;
         }
         sleepTime = tm;
+        _eemem_write16(&eeSleepTime, sleepTime);
 }
 
 extern void IncSleepTime()
 {
-        if (sleepTime >= 60) {
-                sleepTime += 60;
-                if (sleepTime > 600) {
-                        sleepTime = 0;
-                }
+        unsigned int st = sleepTime;
+        if (st >= 60) {
+                st += 60;
         } else {
-                sleepTime += 10;
+                st += 10;
         }
+        SetSleepTime(st);
 }
 
 extern unsigned int GetVoltage()
@@ -226,7 +223,7 @@ static void ReadADC()
 #endif
 
         MCUCR_def = MCUCR;
-        MCUCR = 0x90;     // режим низких шумов АЦП
+        MCUCR = 0x90;  // режим низких шумов АЦП
         delay_us(125);
         TIMSK = 0x00;
         while (ixi > 0) {
@@ -238,9 +235,9 @@ static void ReadADC()
         TIMSK = 0x40;
         //beep_pin = 0;
         _pin_off(OUT_BEEPER);
-        MCUCR = MCUCR_def;       // Возврат режима сна.
+        MCUCR = MCUCR_def;  // Возврат режима сна.
         ADCSRA = 0x00;
         ACSR = 0x00;
-        ADMUX = 0x00;   // выкл
+        ADMUX = 0x00;  // выкл
         btrVoltage = (tmpv >> 6);
 }
