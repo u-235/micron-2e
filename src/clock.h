@@ -80,7 +80,7 @@ extern unsigned char ClockGetMimutes();
  * \brief Устанавливает минуты.
  * \details Функция изменяет значение счетчика минут, если новое значение
  * находится в диапазоне от 0 до 59 включительно.
- * \param s Новое значение минут от 0 до 59.
+ * \param m Новое значение минут от 0 до 59.
  * \return Действительное значение счетчика минут.
  */
 extern unsigned char ClockSetMinutes(unsigned char m);
@@ -104,7 +104,7 @@ extern unsigned char ClockGetHours();
  * \brief Устанавливает часы.
  * \details Функция изменяет значение счетчика часов, если новое значение
  * находится в диапазоне от 0 до 23 включительно.
- * \param s Новое значение часов от 0 до 23.
+ * \param h Новое значение часов от 0 до 23.
  * \return Действительное значение счетчика часов.
  */
 extern unsigned char ClockSetHours(unsigned char h);
