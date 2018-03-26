@@ -18,12 +18,12 @@
  *
  *****************************************************************************/
 
-#include "compiller.h"
 #include "config.h"
 #include <stdio.h>
 #include "clock.h"
 #include "sensor.h"
 #include "alarm.h"
+#include "compiler.h"
 #include "display/n3310lcd.h"
 #include "screens.h"
 #include "power.h"
@@ -88,7 +88,12 @@ void main(void)
                         if (chrg_tick > 10) {
                                 chrg_tick = 0;
                         }
+                        GICR = 0x00;
+                        led_refresh(0);
                         SensorClockEvent(event);
+                        delay_us(25);  //25
+                        led_refresh(1);
+                        GICR = 0xC0;
                 }
 
                         if (flags.poweroff_bit) {

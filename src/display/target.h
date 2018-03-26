@@ -30,7 +30,7 @@
 #ifndef DISPLAY_TARGET_H_
 #define DISPLAY_TARGET_H_
 
-#include "../compiller.h"
+#include "../compiler.h"
 #include "../config.h"
 
 #endif /* DISPLAY_TARGET_H_ */

@@ -18,11 +18,11 @@
  *
  *****************************************************************************/
 
-#include "compiller.h"
 #include "config.h"
 #include <stdio.h>
 #include "alarm.h"
 #include "clock.h"
+#include "compiler.h"
 #include "display/n3310lcd.h"
 #include "sensor.h"
 #include "power.h"

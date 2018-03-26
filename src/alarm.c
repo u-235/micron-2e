@@ -27,12 +27,12 @@
  * \author: nick
  */
 
-#include "compiller.h"
 #include "config.h"
 #include "clock.h"
 #include "sensor.h"
 #include "alarm.h"
 
+#include "compiler.h"
 #include "display/n3310lcd.h"
 #include "screens.h"
 

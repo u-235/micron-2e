@@ -8,7 +8,7 @@
  * \copyright GNU Public License 3
  */
 
-#include "compiller.h"
+#include "compiler.h"
 #include "config.h"
 #include "sensor.h"
 
