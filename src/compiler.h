@@ -1,30 +1,10 @@
-/*****************************************************************************
- *
- *  micron 2 v 1.2.6
- *  Copyright (C) 2018  Nick Egorrov
- *
- *  This program is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
- *****************************************************************************/
-
 /**
  * \file
- * \brief
+ * \brief Определения для совместимости компиляторов.
+ * \date Создан 23.02.2018
+ * \author: Nick Egorrov
+ * \copyright GNU Public License 3
  * \details
- *
- * \date created on: 23.02.2018
- * \author: nick
  */
 
 #ifndef SRC_COMPILLER_H_
@@ -105,7 +85,7 @@ extern "C" {
 #endif
 
         /*************************************************************
-         *      Data in programm space and EEPROM
+         *      Data in program space and EEPROM
          *************************************************************/
 
 #ifdef __GNUC__
@@ -187,10 +167,8 @@ extern "C" {
         _isr_timer2_ovf(void);
 
 #warning not sure about interrupts
-#else
-        /* Неизвестный компилятор */
-#error unknown compiller
 #endif
+
 
         /* some useful defines */
 #define _set_mask(dst, mask) dst|=(mask)
@@ -212,6 +190,16 @@ extern "C" {
 #define __is_pin_set(port, pin) ((PIN##port & (1<<pin)) != 0)
 #define _is_pin_clean(x) __is_pin_clean(x)
 #define _is_pin_set(x) __is_pin_set(x)
+
+
+#define _interrupt_enable(i) _set_bit(i)
+#define _interrupt_disable(i) _set_bit(i)
+
+#define INT_EXT0        GICR, INT0
+#define INT_EXT1        GICR, INT1
+#define INT_TIMER0_OVF  TIMSK, TOIE0
+#define INT_TIMER2_OVF  TIMSK, TOIE2
+
 
 #ifdef _cplusplus
         extern "C" {

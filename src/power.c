@@ -128,7 +128,7 @@ void UpdateWorkTime(char flag)
 extern void poweroff()
 {
         AsyncBeep(0);
-        TIMSK = 0x40;
+        _interrupt_disable(INT_TIMER0_OVF);
         //beep_pin = 0;
         _pin_off(OUT_BEEPER);
         SetMenuActive(0);
@@ -162,7 +162,8 @@ extern void poweroff()
         TCNT2 = 0x00;
         OCR2 = 0x00;
 
-        TIMSK = 0x00;
+        _interrupt_disable(INT_TIMER0_OVF);
+        _interrupt_disable(INT_TIMER2_OVF);
 
 //PORTD.2=1; // �������� �� ����������
 //DDRD.2=0;
@@ -225,14 +226,15 @@ static void ReadADC()
         MCUCR_def = MCUCR;
         MCUCR = 0x90;  // режим низких шумов АЦП
         delay_us(125);
-        TIMSK = 0x00;
+        _interrupt_disable(INT_TIMER0_OVF);
+        _interrupt_disable(INT_TIMER2_OVF);
         while (ixi > 0) {
                 _sleep();  //  Уложить спать
                 _wdr();
                 tmpv += btrVoltage;
                 ixi--;
         }
-        TIMSK = 0x40;
+        _interrupt_enable(INT_TIMER2_OVF);
         //beep_pin = 0;
         _pin_off(OUT_BEEPER);
         MCUCR = MCUCR_def;  // Возврат режима сна.

@@ -97,7 +97,7 @@ void main(void)
                 }
 
                         if (flags.poweroff_bit) {
-                                TIMSK = 0x40;
+                                _interrupt_disable(INT_TIMER0_OVF);
                                 AsyncBeep(0);
                                 _pin_off(OUT_BEEPER);
                                 DrawBay();
@@ -160,7 +160,7 @@ _isr_ext0(void)
                         AsyncBeep(0);
                         _pin_off(OUT_BEEPER);
                         led_refresh(1);
-                        TIMSK = 0x40;
+                        _interrupt_disable(INT_TIMER0_OVF);
                 } else {
                         if (IsMenuActive()) {
                                 menu_select++;
@@ -236,15 +236,6 @@ static void InitHard()
         // Даем немного времени для стабилизации работы генератора
         delay_ms(1000);
 
-        GICR = 0xC0;
-        MCUCR = 0xB0;
-        GIFR = 0xC0;
-
-        //PORTD.3 = 0;   Прерывание без подтяжки
-        //DDRD.3 = 0;
-        _pin_off(IN_SENSOR);
-        _dir_in(IN_SENSOR);
-
         //PORTD.2 = 1;   Подтяжка на прерывание
         //DDRD.2 = 0;
         _pin_on(IN_KEY_INT);
@@ -270,10 +261,9 @@ static void InitHard()
         _pin_off(OUT_LED_BLUE);
         _dir_out(OUT_LED_BLUE);
 
-        //PORTD.1 = 0;   Ножка на управление трансом.
-        //DDRD.1 = 1;
-        _pin_off(OUT_PUMP_SWITCH);
-        _dir_out(OUT_PUMP_SWITCH);
+        _interrupt_enable(INT_TIMER2_OVF);
 
-        TIMSK = 0x40;
+        /* Режим сна - Standby, внешние прерывания по низкому уровню. */
+        MCUCR = (1 << SM2) | (1 << SM1);
+        _interrupt_enable(INT_EXT0);
 }

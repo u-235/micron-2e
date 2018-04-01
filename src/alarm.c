@@ -164,7 +164,7 @@ extern void CheckAlarm()
         if ((impulse_count > alarmLevel) && (!flags.user_cancel_alarm)
                         && (alarmLevel > 0)) {
                 flags.beep = 1;
-                TIMSK = 0x41;
+                _interrupt_enable(INT_TIMER0_OVF);
                 led_refresh(2);
                 delay_ms(100);
                 LcdPwrOn();
@@ -246,7 +246,7 @@ _isr_timer0_ovf(void)
         static unsigned char beep_count = 0;
         TCNT0 = 0xFF;
         if (!flags.beep) {
-                TIMSK = 0x40;
+                _interrupt_disable(INT_TIMER0_OVF);
                 //beep_pin = 0;
                 _pin_off(OUT_BEEPER);
                 led_refresh(1);
@@ -273,7 +273,7 @@ _isr_timer0_ovf(void)
                                 _pin_off(OUT_BEEPER);
                                 led_refresh(1);
                                 beep_count = 0;
-                                TIMSK = 0x40;
+                                _interrupt_disable(INT_TIMER0_OVF);
                                 flags.beep = 0;
                         }
 

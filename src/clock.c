@@ -29,7 +29,7 @@ extern void InitClock()
         TCNT2 = 0;
         OCR2 = 0;
         TCCR2 |= (1 << CS22) | (1 << CS20);
-        TIMSK |= (1 <<  TOIE2);
+        _interrupt_enable(INT_TIMER2_OVF);
 }
 
 extern unsigned char ClockGetEvent()

@@ -70,7 +70,7 @@ void menu_modification_check(char selected)
         case 4:
                 SensorClearDose();
                 ClockClearDays();
-                TIMSK = 0x41;
+                _interrupt_enable(INT_TIMER0_OVF);
                 AsyncBeep(1);
                 delay_ms(100);
                 break;
