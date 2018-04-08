@@ -77,7 +77,7 @@ static eeprom unsigned char eeTicksHit = PUMP_TICKS_HIT_DEFAULT;
  * Инициализация датчика. Параметры настройки извлекаются из EEPROM и
  * запускается начальный цикл накачки.
  */
-extern void InitSensor()
+extern void SensorInit()
 {
         unsigned char i;
 
@@ -88,7 +88,7 @@ extern void InitSensor()
         pulseDuration = _eemem_read8(&eePulseDuration);
         ticksPeriodic = _eemem_read8(&eeTicksPeriodic);
         ticksHit = _eemem_read8(&eeTicksHit);
-        CalculatePump(GetVoltage());
+        CalculatePump(PowerVoltage());
         for (i = PUMP_TICKS_INIT / 255; i > 0; i--) {
                 RunCharge(255);
         }
@@ -270,7 +270,7 @@ extern void SensorClockEvent(unsigned char event)
         unsigned int old;
 
         if (event & CLOCK_EVENT_MINUTE) {
-                CalculatePump(GetVoltage());
+                CalculatePump(PowerVoltage());
         }
 
         if (event & CLOCK_EVENT_SECOND) {

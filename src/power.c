@@ -1,245 +1,366 @@
-/*****************************************************************************
- *
- *  micron 2 v 1.2.6
- *  Copyright (C) 2018  Nick Egorrov
- *
- *  This program is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
- *****************************************************************************/
-
 /**
  * \file
- * \brief
+ * \brief Реализация управления питанием.
  * \details
  *
- * \date created on: 24.02.2018
- * \author: nick
+ * \anchor adc_internal
+ * \b Измерение \b напряжения \b питания \b МК
+ * \n Наиболее интересной и неочевидной частью этого модуля является
+ * измерение напряжения аккумулятора при использовании схемы с питанием
+ * непосредственно от литиевого аккумулятора. При такой конфигурации за опорное
+ * берётся напряжение питания МК \f$V_{cc}\f$, а измеряется напряжение
+ * \f$V_{bg}\f$ на первичного источника опорного напряжения. В справочнике это
+ * напряжение называется "bandgap reference" и номинально оно равно 1.3 вольта
+ * для ATmega8 (но в справочнике от 2003 года указана цифра 1.23 вольта). Если
+ * максимальное разрешение АЦП обозначить как \f$ADC_{max}\f$, то в общем случае
+ * результат измерений \f$ADC\f$ можно выразить через формулу
+ * \f[
+ * ADC = \frac{V_{bg} \times ADC_{max}}{V_{cc}}
+ * \f]
+ *
+ * Сложность в том, что напряжение первичного ИОН зависит от питающего
+ * напряжения \f$V_{cc}\f$ (хотя и слабо) и от температуры. В данном устройстве
+ * нет датчика температуры, поэтому будем считать что
+ * \f$V_{bg} = V_{bg0} + k \times V_{cc}\f$ , где \f$V_{bg0}\f$ - это начальное
+ * значение опорного напряжения и \f$ k \f$ - это зависимость опорного
+ * напряжения от питающего. В таком случае предыдущая формула результата
+ * измерений становится
+ * \f[
+ * ADC
+ *     = \frac{(V_{bg0} + k \times V_{cc} ) \times ADC_{max}}{V_{cc}}
+ *     = \frac{V_{bg0} \times ADC_{max}}{V_{cc}} + k \times ADC_{max}
+ * \f]
+ *
+ * И наконец, напряжение питания можно вычислить по следующей формуле.
+ * \f[
+ * V_{cc}=\frac{V_{bg0} \times ADC_{max}}{ADC - k \times ADC_{max}}
+ * \f]
+ *
+ * Поскольку в устройстве напряжение выражается в сотых долях вольта, то
+ * получаем
+ * \f[
+ * V_{cc}=\frac{V_{bg0} \times ADC_{max} \times 100}{ADC - k \times ADC_{max}}
+ * \f]
+ *
+ * \date Создан 24.02.2018
+ * \author Nick Egorrov
+ * \copyright GNU Public License 3
  */
 
+#include "compiler.h"
 #include "config.h"
 #include "alarm.h"
-#include "compiler.h"
+#include "clock.h"
 #include "display/n3310lcd.h"
+#include "power.h"
 #include "screens.h"
+#include "sensor.h"
+
+#define VOLTAGE_MEASURE_CYCLE   16U
 
 /**
- * Run sequence or measure and calculate raw value to hundredth of volts.
+ * Максимальное значение АЦП. Используются старшие 8 бит результата, поэтому
+ * максимальное значение равно 256. Казалось бы должно быть 255, но в
+ * справочнике на МК настаивают именно на 256.
  */
-static void ReadADC();
+#define ADC_MAX                 256U
 
+/**
+ * Вольтаж первичного источника опорного напряжения.
+ */
+#ifndef ADC_BANDGAP_REFERENCE
+#define ADC_BANDGAP_REFERENCE   1.2845F
+#endif
+
+/**
+ * Коэффициент зависимости первичного ИОН от напряжения питания.
+ */
+#ifndef ADC_BANDGAP_VS_VCC
+#define ADC_BANDGAP_VS_VCC      0.0025F
+#endif
+
+/**
+ * Вольтаж внутреннего источника опорного напряжения АЦП.
+ */
+#ifndef ADC_INTERNAL_REFERENCE
+#define ADC_INTERNAL_REFERENCE  2.56F
+#endif
+
+/**
+ * В схеме с батарейкой её напряжение измеряется через делитель 2:1
+ * Если показания не соответствуют реальным, можно изменить эту константу или
+ * #ADC_INTERNAL_REFERENCE.
+ */
+#ifndef MEASURE_CIRCUIT_SCALE
+#define MEASURE_CIRCUIT_SCALE   2.0F
+#endif
+
+/*************************************************************
+ *      Private function prototype
+ *************************************************************/
+
+/*
+ * Запуск измерения напряжения питания.
+ */
+static void RunMeasure();
+
+/*************************************************************
+ *      Variable in RAM
+ *************************************************************/
+
+/* Текущий режим работы устройства. См. PowerSetMode(). */
+static unsigned char powerMode;
+/* Оставшийся заряд источника питания. */
 static unsigned char btrPercent = 0;
+/* Напряжение источника питания, в сотых долях вольта. */
 static unsigned int btrVoltage = 0;
-static unsigned int sleepTime;  // Через сколько секунд засыпать
+/* Время задержки перехода в режим энергосбережения. */
+static unsigned char saveDelay;
+/* Счётчик перехода в режим энергосбережения. */
+static unsigned int saveTimer;
 
-static eeprom unsigned int eeSleepTime = 30;  // Через сколько секунд засыпать
+/*************************************************************
+ *      Variable in EEPROM
+ *************************************************************/
 
-extern void InitPower()
+/* Время задержки перехода в режим энергосбережения, значение, сохраняемое
+ * в EEPROM.
+ */
+eeprom static unsigned char eeSaveDelay = POWER_SAVE_DELAY_DEFAULT
+                / POWER_SAVE_DELAY_STEP;
+
+/*************************************************************
+ *      Public function
+ *************************************************************/
+
+/*
+ * Инициализация модуля. Для включения устройства нужно вызвать
+ * PowerSetMode().
+ */
+extern void PowerInit()
 {
-        sleepTime = _eemem_read16(&eeSleepTime);
+        saveDelay = _eemem_read8(&eeSaveDelay);
+        RunMeasure();
 }
 
-extern unsigned int GetSleepTime()
+/*
+ * Переключение режима работы устройства.
+ * \param mode Один из режимов #POWER_MODE_ON, #POWER_MODE_SAVE или
+ * #POWER_MODE_OFF.
+ */
+extern void PowerSetMode(unsigned char mode)
 {
-        return sleepTime;
-}
+        powerMode = mode;
 
-extern void SetSleepTime(unsigned int tm)
-{
-        if (tm > 600) {
-                tm = 0;
+        switch (mode) {
+        case POWER_MODE_ON:
+                SensorInit();
+                AlarmInit();
+                LcdInit();
+                break;
+        case POWER_MODE_SAVE:
+                LcdPwrOff();
+                break;
+        case POWER_MODE_OFF:
+        default:
+                _interrupt_disable(INT_EXT1);
+                LcdPwrOff();
+                AsyncBeep(0);
+                SetMenuActive(0);
+                led_refresh(2);
+                GICR = 0x40;
+                MCUCR = 0xA0;
+                DDRB = 0x00;
+                DDRC = 0x00;
+                DDRD = 0x00;
+                PORTB = 0x00;
+                PORTC = 0x00;
+                PORTD = 0x04;
+                TCCR0 = 0x00;
         }
-        sleepTime = tm;
-        _eemem_write16(&eeSleepTime, sleepTime);
 }
 
-extern void IncSleepTime()
+/*
+ * Получение режима работы устройства.
+ * \return Один из режимов #POWER_MODE_ON, #POWER_MODE_SAVE или #POWER_MODE_OFF.
+ */
+extern unsigned char PowerGetMode()
 {
-        unsigned int st = sleepTime;
-        if (st >= 60) {
-                st += 60;
+        return powerMode;
+}
+
+/*
+ * Обновление внутреннего состояния модуля.
+ * \param event Набор флагов CLOCK_EVENT_xx см. "clock.h"
+ */
+extern void PowerClockEvent(unsigned char event)
+{
+        if (powerMode == POWER_MODE_OFF || (event & CLOCK_EVENT_SECOND) == 0) {
+                return;
+        }
+        RunMeasure();
+        if (saveTimer != 0) {
+                saveTimer--;
+                if (saveTimer == 0) {
+                        PowerSetMode(POWER_MODE_SAVE);
+                }
+        }
+}
+
+/*
+ * Перезапуск счетчика задержки перехода в режим пониженного потребления
+ * питания.
+ */
+void PowerStartSaveTimer()
+{
+        saveTimer = saveDelay * POWER_SAVE_DELAY_STEP;
+}
+
+/*
+ * Получение времени задержки перехода в режим пониженного потребления питания.
+ * \return время задержки в секундах.
+ */
+extern unsigned int PowerGetSaveTime()
+{
+        return (unsigned int) saveDelay * POWER_SAVE_DELAY_STEP;
+}
+
+/*
+ * Установка времени задержки перехода в режим пониженного потребления питания.
+ * \param tm время задержки в секундах. Если \arg tm больше POWER_SAVE_DELAY_MAX
+ *      то записывается ноль.
+ */
+extern void PowerSetSaveTime(unsigned int tm)
+{
+        unsigned char t = tm / POWER_SAVE_DELAY_STEP;
+        if (t > POWER_SAVE_DELAY_MAX / POWER_SAVE_DELAY_STEP) {
+                t = 0;
+        }
+        saveDelay = t;
+        _eemem_write8(&eeSaveDelay, saveDelay);
+}
+
+/*
+ * Увеличение времени задержки перехода в режим пониженного потребления питания.
+ * Для значения задержки до 60 секунд увеличение происходит на 10, далее на 60
+ * секунд.Если задержка больше #POWER_SAVE_DELAY_MAX, то записывается ноль.
+ */
+extern void PowerIncSaveTime()
+{
+        unsigned char st = saveDelay;
+        if (st >= 60 / POWER_SAVE_DELAY_STEP) {
+                st += 60 / POWER_SAVE_DELAY_STEP;
         } else {
-                st += 10;
+                st += 10 / POWER_SAVE_DELAY_STEP;
         }
-        SetSleepTime(st);
+        PowerSetSaveTime(st);
 }
 
-extern unsigned int GetVoltage()
+/*
+ * Проверка состояния источника питания.
+ * \return 0 если уровень питания в норме.
+ */
+extern char PowerCheck()
+{
+        if (PowerCharge() < POWER_LEVEL_ALARM) {
+                return ~0;
+        }
+        return 0;
+}
+
+/**
+ * Возвращает напряжение источника питания.
+ * \return Напряжение питания в сотых долях вольта.
+ */
+extern unsigned int PowerVoltage()
 {
         return btrVoltage;
 }
 
-extern unsigned char GetCharge()
+/**
+ * Возвращает заряд источника питания.
+ * \return Оставшийся заряд в процентах.
+ */
+extern unsigned char PowerCharge()
 {
         return btrPercent;
 }
 
-extern char CheckPower()
+/*************************************************************
+ *      Interrupt handler
+ *************************************************************/
+static unsigned int measureVoltage;
+static unsigned char measureCycle;
+
+_isr_adc(void)
 {
-        ReadADC();
-        /* Adjust */
+        measureVoltage += ADCH;
+        if (--measureCycle != 0) {
+                return;
+        }
+
+        ADCSRA = 0x00;
+        ACSR = 0x00;
+        ADMUX = 0x00;
+#ifdef POWER_LION
+        btrVoltage = measureVoltage
+                        - (unsigned int) (ADC_BANDGAP_VS_VCC * ADC_MAX
+                                        * VOLTAGE_MEASURE_CYCLE);
+        btrVoltage /= VOLTAGE_MEASURE_CYCLE;
+        btrVoltage = ((unsigned int) (100 * ADC_BANDGAP_REFERENCE) * ADC_MAX)
+                        / btrVoltage;
+#else
+        btrVoltage = measureVoltage
+        * ((unsigned int) (100 * ADC_INTERNAL_REFERENCE
+                                        * MEASURE_CIRCUIT_SCALE)
+                        / VOLTAGE_MEASURE_CYCLE )/ ADC_MAX;
+#endif
         if (btrVoltage > POWER_VOLTAGE_HIGH) {
                 btrVoltage = POWER_VOLTAGE_HIGH;
         }
         if (btrVoltage < POWER_VOLTAGE_LOW) {
                 btrVoltage = POWER_VOLTAGE_LOW;
         }
-
         btrPercent = (btrVoltage - POWER_VOLTAGE_LOW) * 100
                         / (POWER_VOLTAGE_HIGH - POWER_VOLTAGE_LOW);
-
-        if (btrPercent < POWER_LEVEL_ALARM) {
-                return -1;
-        }
-        return 0;
 }
 
-void UpdateWorkTime(char flag)
+/*************************************************************
+ *      Private function
+ *************************************************************/
+
+static void RunMeasure()
 {
-        static unsigned int display_time = 0;
-        if (flag == 0) {
-                display_time = 0;
-                return;
-        }
-
-        if (sleepTime == 0) {
-                return;
-        }
-
-        if (display_time < 1000) {
-                display_time++;
-        }
-
-        if ((display_time > sleepTime) && !IsAlarm()) {
-                LcdPwrOff();
-        }
-}
-
-extern void poweroff()
-{
-        AsyncBeep(0);
-        _interrupt_disable(INT_TIMER0_OVF);
-        //beep_pin = 0;
-        _pin_off(OUT_BEEPER);
-        SetMenuActive(0);
-        led_refresh(2);
-        LcdPwrOff();
-
-//#pragma optsize-
-        WDTCR = 0x1F;
-        WDTCR = 0x00;
-#ifdef _OPTIMIZE_SIZE_
-//#pragma optsize+
-#endif
-
-        _sei();
-        GICR = 0x40;
-        MCUCR = 0xA0;
-
-        DDRB = 0x00;
-        DDRC = 0x00;
-        DDRD = 0x00;
-
-        PORTB = 0x00;
-        PORTC = 0x00;
-        PORTD = 0x04;
-
-        TCCR0 = 0x00;
-//TCNT0=0xFF;
-
-        ASSR = 0x00;
-        TCCR2 = 0x00;
-        TCNT2 = 0x00;
-        OCR2 = 0x00;
-
-        _interrupt_disable(INT_TIMER0_OVF);
-        _interrupt_disable(INT_TIMER2_OVF);
-
-//PORTD.2=1; // �������� �� ����������
-//DDRD.2=0;
-
-        _sei();
-
-//#pragma optsize-
-        WDTCR = 0x1F;
-        WDTCR = 0x0F;
-#ifdef _OPTIMIZE_SIZE_
-//#pragma optsize+
-#endif
+        measureVoltage = 0;
+        measureCycle = VOLTAGE_MEASURE_CYCLE;
 
         /*
-         while (1) {
-         _sleep();
-         }
+         * В версии с радикота измерение происходило в режиме сна для
+         * уменьшения помех. Однако на мой взгляд в этом нет необходимости,
+         * так как младшие два разряда отбрасываются и используется серия
+         * измерений.
+         *
+         * Общие настройки: разрешаем прерывания, измерение в цикле,
+         * предделитель на 64 (частота АЦП 125kHz при шине 8mHz). Используются
+         * только старшие 8 бит результата.
          */
-}
-
-_isr_adc(void)
-{
+        ADCSRA = (1 << ADEN) | (1 << ADFR) | (1 << ADIE) | (1 << ADPS2)
+                        | (1 << ADPS1);
 #ifdef POWER_LION
-        /* TODO delete magic */
-        btrVoltage = (118 * 255) / (ADCH - 1);  // 1.16 коэфф (для мег8 колебрется от 1.01 до 1.2 можно уточнить вольтметром и формулой ADC_VALUE = V_BG * 255/Vcc)
-//как посчитать я так и не понял, но методом научного тыка определил, что 1 = 0.03 В :)
-//при 116 показывало 3.74, а было - 3.82, при 118 показывает 3.80, что довольно-таки точно.
-#else
-                        btrVoltage=((unsigned int)ADCH-1)*2;  // 1023 - 5 вольт
-#endif
-}
-
-static void ReadADC()
-{
-        unsigned int tmpv = 0;
-        unsigned char ixi = 64, MCUCR_def;
-
-        _sei();
-        // Разрешить Все прерывания
-
-#ifdef POWER_LION
-        //Включение АЦП
-        // можна мерять
-        // мерять непрерывно
-        // разрешить прерывание
-        // предделитель на 64 (частота АЦП 125kHz при шине 8mHz)
-        ADCSRA |= (1 << ADEN) | (1 << ADIE) | (1 << ADPS2) | (1 << ADPS1);
-        // опора AVCC
-        // результат только в старший байт, ADCL не нужен
-        // вход ADC14, т.е. вн. ИОН
-        ADMUX |= (1 << REFS0) | (1 << ADLAR) | (1 << MUX3) | (1 << MUX2)
+        /*
+         * В качестве опорного используется напряжение питания.
+         * Измерять на ADC14, т.е. вн. ИОН
+         */
+        ADMUX = (1 << REFS0) | (1 << ADLAR) | (1 << MUX3) | (1 << MUX2)
                         | (1 << MUX1);
 #else
-        //ADCSRA = 0b10011111;
-        //ADMUX = 0b11100111;
-        ADCSRA |= (1 << ADEN) | (1 << ADIF) | (1 << ADIE) | (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
-        ADMUX |= (1 << REFS1) | (1 << REFS0) | (1 << ADLAR) | (1 << MUX2) | (1 << MUX1) | (1 << MUX0);
+        /*
+         * В качестве опорного напряжения используется внутренний источник 2.56
+         * вольт. Измерять на ADC7 (это невозможно в DIP корпусе)
+         */
+        ADMUX = (1 << REFS1) | (1 << REFS0) | (1 << ADLAR) | (1 << MUX2)
+        | (1 << MUX1) | (1 << MUX0);
 #endif
-
-        MCUCR_def = MCUCR;
-        MCUCR = 0x90;  // режим низких шумов АЦП
-        delay_us(125);
-        _interrupt_disable(INT_TIMER0_OVF);
-        _interrupt_disable(INT_TIMER2_OVF);
-        while (ixi > 0) {
-                _sleep();  //  Уложить спать
-                _wdr();
-                tmpv += btrVoltage;
-                ixi--;
-        }
-        _interrupt_enable(INT_TIMER2_OVF);
-        //beep_pin = 0;
-        _pin_off(OUT_BEEPER);
-        MCUCR = MCUCR_def;  // Возврат режима сна.
-        ADCSRA = 0x00;
-        ACSR = 0x00;
-        ADMUX = 0x00;  // выкл
-        btrVoltage = (tmpv >> 6);
+        /* Запуск АЦП */
+        ADCSRA |= (1 << ADSC);
 }

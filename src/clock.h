@@ -35,7 +35,7 @@ extern "C" {
 /**
  * Инициализация часов.
  */
-extern void InitClock();
+extern void ClockInit();
 
 /**
  * \brief Было ли обновление.

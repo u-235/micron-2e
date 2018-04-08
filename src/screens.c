@@ -62,7 +62,7 @@ void menu_modification_check(char selected)
                 IncAlarmLevel();
                 break;
         case 2:
-                IncSleepTime();
+                PowerIncSaveTime();
                 break;
         case 3:
                 SetSoundEnable(!IsSoundEnable());
@@ -111,10 +111,10 @@ unsigned char DrawMenu(unsigned char menu_select)
                         LcdString(buf, 0, 2);
                 }
 
-                if (GetSleepTime() == 0) {
+                if (PowerGetSaveTime() == 0) {
                         format(buf, PSTR("Сон      откл."));
                 } else {
-                        format(buf, PSTR("Сон    %4uсек"), GetSleepTime());
+                        format(buf, PSTR("Сон    %4uсек"), PowerGetSaveTime());
                 }
                 if (menu_select == 2) {
                         LcdStringInv(buf, 0, 3);
@@ -237,10 +237,10 @@ void main_window_draw(unsigned char chrg_tick)
 
 //  .Батарейка
         if (chrg_tick > 5) {
-                format(buf, PSTR("^ %03u$"), GetCharge());
+                format(buf, PSTR("^ %03u$"), PowerCharge());
         } else {
-                format(buf, PSTR("^%01u.%02uv"), GetVoltage() / 10,
-                                GetVoltage() % 10);
+                format(buf, PSTR("^%01u.%02uv"), PowerVoltage() / 10,
+                                PowerVoltage() % 10);
         }
         LcdString(buf, 8, 0);
 

@@ -48,9 +48,9 @@ static unsigned int display_time = 0;
 void main(void)
 {
         InitHard();
-        InitPower();
-        InitAlarm();
-        InitClock();
+        PowerInit();
+        ClockInit();
+        PowerSetMode(POWER_MODE_ON);
 
         //beep_pin = 0;
         _pin_off(OUT_BEEPER);
@@ -65,7 +65,7 @@ void main(void)
 
         DrawIntro();
 
-        if (CheckPower() != 0) {
+        if (PowerCheck() != 0) {
                 alarm_sound();
                 delay_ms(50);
                 alarm_sound();  //звук предупреждения о батарейке - 3 пика
@@ -74,7 +74,7 @@ void main(void)
         }
 
         _cli();
-        InitSensor();
+        SensorInit();
         _sei();
         //разрешаем прерывания
 
@@ -102,7 +102,7 @@ void main(void)
                                 _pin_off(OUT_BEEPER);
                                 DrawBay();
                                 delay_ms(4000);
-                                poweroff();
+                                PowerSetMode(POWER_MODE_OFF);
                                 // TODO bad
                                 while (flags.poweroff_bit) {
                                         _sleep();
@@ -168,7 +168,7 @@ _isr_ext0(void)
                 }
         }
 
-        UpdateWorkTime(0);
+        PowerStartSaveTimer();
         if (TIMSK != 0x00) LcdPwrOn();
         while ((_is_pin_clean(IN_KEY_INT)) && (!flags.poweroff_bit))  // проверка длительности удержания кнопки
         {

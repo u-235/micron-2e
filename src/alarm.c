@@ -51,7 +51,7 @@ static eeprom char eeSoundEnable = 1;
 static eeprom int eeAlarmLevel = 50;  // при каком уровне включать тревогу
 static int alarmLevel;
 
-extern void InitAlarm()
+extern void AlarmInit()
 {
         TCCR0 = 0x05;
         TCNT0 = 0xFF;

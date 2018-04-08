@@ -18,7 +18,7 @@ static unsigned char minute_tick = 0;
 static unsigned char hour_tick = 0;
 static unsigned int days = 0;
 
-extern void InitClock()
+extern void ClockInit()
 {
         /* Асинхронный режим работы
          * Пределитель = 128

@@ -37,7 +37,7 @@ extern "C" {
 /**
  * Инициализация. Загрузка настрое из EEPROM.
  */
-extern void InitAlarm();
+extern void AlarmInit();
 
 extern unsigned int GetAlarmLevel();
 
