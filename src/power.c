@@ -49,12 +49,12 @@
 
 #include "compiler.h"
 #include "config.h"
-#include "alarm.h"
 #include "clock.h"
 #include "display/n3310lcd.h"
 #include "power.h"
 #include "screens.h"
 #include "sensor.h"
+#include "user.h"
 
 #define VOLTAGE_MEASURE_CYCLE   16U
 
@@ -155,7 +155,7 @@ extern void PowerSetMode(unsigned char mode)
         switch (mode) {
         case POWER_MODE_ON:
                 SensorInit();
-                AlarmInit();
+                UserInit();
                 LcdInit();
                 break;
         case POWER_MODE_SAVE:
@@ -165,9 +165,9 @@ extern void PowerSetMode(unsigned char mode)
         default:
                 _interrupt_disable(INT_EXT1);
                 LcdPwrOff();
-                AsyncBeep(0);
+                UserAsyncBeep(0);
                 SetMenuActive(0);
-                led_refresh(2);
+                UserLight(2);
                 GICR = 0x40;
                 MCUCR = 0xA0;
                 DDRB = 0x00;

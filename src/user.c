@@ -1,40 +1,20 @@
-/*****************************************************************************
- *
- *  micron 2 v 1.2.6
- *  Copyright (C) 2018  Nick Egorrov
- *
- *  This program is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
- *****************************************************************************/
-
 /**
  * \file
  * \brief
  * \details
  *
- * \date created on: 25.02.2018
- * \author: nick
+ * \date Создан 25.02.2018
+ * \author Nick Egorrov
+ * \copyright GNU Public License 3
  */
 
+#include "compiler.h"
 #include "config.h"
 #include "clock.h"
-#include "sensor.h"
-#include "alarm.h"
-
-#include "compiler.h"
 #include "display/n3310lcd.h"
 #include "screens.h"
+#include "sensor.h"
+#include "user.h"
 
 static struct _aFlags {
         unsigned char red :1;
@@ -51,7 +31,7 @@ static eeprom char eeSoundEnable = 1;
 static eeprom int eeAlarmLevel = 50;  // при каком уровне включать тревогу
 static int alarmLevel;
 
-extern void AlarmInit()
+extern void UserInit()
 {
         TCCR0 = 0x05;
         TCNT0 = 0xFF;
@@ -60,12 +40,12 @@ extern void AlarmInit()
         flags.beep = 0;
 }
 
-extern unsigned int GetAlarmLevel()
+extern unsigned int UserGetAlarmLevel()
 {
         return alarmLevel;
 }
 
-extern void SetAlarmLevel(unsigned int lvl)
+extern void UserSetAlarmLevel(unsigned int lvl)
 {
         if (lvl > 9999) {
                 lvl = 0;
@@ -74,7 +54,7 @@ extern void SetAlarmLevel(unsigned int lvl)
         _eemem_write16(&eeAlarmLevel, lvl);
 }
 
-extern void IncAlarmLevel()
+extern void UserIncAlarmLevel()
 {
         unsigned int lvl = alarmLevel;
 
@@ -85,56 +65,56 @@ extern void IncAlarmLevel()
         } else {
                 lvl += 25;
         }
-        SetAlarmLevel(lvl);
+        UserSetAlarmLevel(lvl);
 }
 
-extern char IsAlarm()
+extern char UserIsAlarm()
 {
         return flags.alarm;
 }
 
-extern void SetCanselAlarm(char on)
+extern void UserSetCanselAlarm(char on)
 {
         flags.user_cancel_alarm = on;
 }
 
-extern char IsCanselAlarm()
+extern char UserIsCanselAlarm()
 {
         return flags.user_cancel_alarm;
 }
 
-extern char IsSoundEnable()
+extern char UserIsSoundEnable()
 {
         return flags.sound_enable;
 }
 
-extern void SetSoundEnable(char on)
+extern void UserSetSoundEnable(char on)
 {
         flags.sound_enable = on;
         _eemem_write8(&eeSoundEnable, on);
 }
 
-extern void AsyncBeep(char on)
+extern void UserAsyncBeep(char on)
 {
         flags.beep = on;
 }
 
-extern char IsAsyncBeep()
+extern char UserIsAsyncBeep()
 {
         return flags.beep;
 }
 
-extern void SetBlackLight(char on)
+extern void UserSetBlackLight(char on)
 {
         flags.black_light_enable = on;
 }
 
-extern char IsBlackLight()
+extern char UserIsBlackLight()
 {
         return flags.black_light_enable;
 }
 
-extern void calc_counters(unsigned char second)
+extern void UserSensorCheck(unsigned char second)
 {
         static unsigned char error_count = 0;
         unsigned int impulse_count = SensorGetRadiation(SENSOR_INDEX_MAX + 1);
@@ -149,15 +129,15 @@ extern void calc_counters(unsigned char second)
                 }
                 // Нет импульсов с датчика, подать сигнал.
                 if (error_count > 5) {
-                        alarm_sound();
-                        alarm_sound();
+                        UserAlarmSound();
+                        UserAlarmSound();
                 }
                 second = 0;
         }
 
 }
 
-extern void CheckAlarm()
+extern void UserAlarmCheck()
 {
         unsigned int impulse_count = SensorGetRadiation(SENSOR_INDEX_MAX + 1);
 
@@ -165,7 +145,7 @@ extern void CheckAlarm()
                         && (alarmLevel > 0)) {
                 flags.beep = 1;
                 _interrupt_enable(INT_TIMER0_OVF);
-                led_refresh(2);
+                UserLight(2);
                 delay_ms(100);
                 LcdPwrOn();
                 flags.alarm = 1;
@@ -186,7 +166,7 @@ extern void CheckAlarm()
  *      - 1 - восстановление состояния перед выключением.
  *      - 2 - подсветка вкл
  */
-extern void led_refresh(unsigned char command)
+extern void UserLight(unsigned char command)
 {
         if (LcdIsPwrDown()) {
                 command = 0;
@@ -228,12 +208,12 @@ extern void led_refresh(unsigned char command)
 }
 
 //звук предупреждения о батарейке и датчике
-extern void alarm_sound()
+extern void UserAlarmSound()
 {
         int i;
 
         for (i = 100; i > 0; i--) {
-                led_refresh(0);
+                UserLight(0);
                 _pin_on(OUT_BEEPER);
                 delay_us(50);
                 _pin_off(OUT_BEEPER);
@@ -249,17 +229,17 @@ _isr_timer0_ovf(void)
                 _interrupt_disable(INT_TIMER0_OVF);
                 //beep_pin = 0;
                 _pin_off(OUT_BEEPER);
-                led_refresh(1);
+                UserLight(1);
         } else {
                 if (beep_count < 254) {
                         beep_count++;
                         if (!flags.beep_active) {
                                 //beep_pin = 0;
                                 _pin_off(OUT_BEEPER);
-                                led_refresh(1);
+                                UserLight(1);
                                 flags.beep_active = 1;
                         } else {
-                                led_refresh(0);
+                                UserLight(0);
                                 //beep_pin = 1;
                                 _pin_on(OUT_BEEPER);
                                 flags.beep_active = 0;
@@ -271,7 +251,7 @@ _isr_timer0_ovf(void)
                         } else {
                                 //beep_pin = 0;
                                 _pin_off(OUT_BEEPER);
-                                led_refresh(1);
+                                UserLight(1);
                                 beep_count = 0;
                                 _interrupt_disable(INT_TIMER0_OVF);
                                 flags.beep = 0;

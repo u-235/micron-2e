@@ -18,15 +18,14 @@
  *
  *****************************************************************************/
 
-#include "config.h"
-#include <stdio.h>
-#include "clock.h"
-#include "sensor.h"
-#include "alarm.h"
 #include "compiler.h"
+#include "config.h"
+#include "clock.h"
 #include "display/n3310lcd.h"
-#include "screens.h"
 #include "power.h"
+#include "screens.h"
+#include "sensor.h"
+#include "user.h"
 
 static void InitHard();
 
@@ -55,10 +54,10 @@ void main(void)
         //beep_pin = 0;
         _pin_off(OUT_BEEPER);
         SetMenuActive(0);
-        led_refresh(2);
+        UserLight(2);
         LcdInit();
         delay_ms(100);
-        led_refresh(2);
+        UserLight(2);
         delay_ms(100);
         LcdPwrOn();
         delay_ms(100);
@@ -66,11 +65,11 @@ void main(void)
         DrawIntro();
 
         if (PowerCheck() != 0) {
-                alarm_sound();
+                UserAlarmSound();
                 delay_ms(50);
-                alarm_sound();  //звук предупреждения о батарейке - 3 пика
+                UserAlarmSound();  //звук предупреждения о батарейке - 3 пика
                 delay_ms(50);
-                alarm_sound();
+                UserAlarmSound();
         }
 
         _cli();
@@ -89,39 +88,39 @@ void main(void)
                                 chrg_tick = 0;
                         }
                         GICR = 0x00;
-                        led_refresh(0);
+                        UserLight(0);
                         SensorClockEvent(event);
                         delay_us(25);  //25
-                        led_refresh(1);
+                        UserLight(1);
                         GICR = 0xC0;
                 }
 
-                        if (flags.poweroff_bit) {
-                                _interrupt_disable(INT_TIMER0_OVF);
-                                AsyncBeep(0);
-                                _pin_off(OUT_BEEPER);
-                                DrawBay();
-                                delay_ms(4000);
-                                PowerSetMode(POWER_MODE_OFF);
-                                // TODO bad
-                                while (flags.poweroff_bit) {
-                                        _sleep();
-                                }
+                if (flags.poweroff_bit) {
+                        _interrupt_disable(INT_TIMER0_OVF);
+                        UserAsyncBeep(0);
+                        _pin_off(OUT_BEEPER);
+                        DrawBay();
+                        delay_ms(4000);
+                        PowerSetMode(POWER_MODE_OFF);
+                        // TODO bad
+                        while (flags.poweroff_bit) {
+                                _sleep();
                         }
+                }
 
                 if (IsNeedUpdate()) {
                         SetNeedUpdate(0);
-                        calc_counters(1); // TODO IT'S NOT WORK
+                        UserSensorCheck(1);  // TODO IT'S NOT WORK
                         _wdr();
 
-                        CheckAlarm();
+                        UserAlarmCheck();
                         if ((_is_pin_clean(IN_KEY_PLUS)) && IsMenuActive()) {
                                 menu_modification_check(menu_select);
                                 display_time = 0;
                                 delay_ms(300);
                         }
 
-                        led_refresh(2);
+                        UserLight(2);
 
                         if (!LcdIsPwrDown()) {
                                 LcdClear();
@@ -135,7 +134,7 @@ void main(void)
                 }
 
                 if (!IsMenuActive()) {
-                        if (!IsAsyncBeep()) {
+                        if (!UserIsAsyncBeep()) {
                                 _sleep();
                         }
                         _wdr();
@@ -155,11 +154,11 @@ _isr_ext0(void)
         _pin_off(OUT_PUMP_SWITCH);
 
         if (!LcdIsPwrDown()) {
-                if (IsAlarm() && (!IsCanselAlarm())) {
-                        SetCanselAlarm(1);
-                        AsyncBeep(0);
+                if (UserIsAlarm() && (!UserIsCanselAlarm())) {
+                        UserSetCanselAlarm(1);
+                        UserAsyncBeep(0);
                         _pin_off(OUT_BEEPER);
-                        led_refresh(1);
+                        UserLight(1);
                         _interrupt_disable(INT_TIMER0_OVF);
                 } else {
                         if (IsMenuActive()) {
@@ -181,13 +180,13 @@ _isr_ext0(void)
 
                 if ((key_press % 10) == 0) {
                         for (i = 800; i > 0; i--) {
-                                led_refresh(0);
+                                UserLight(0);
                                 //beep_pin = 1;
                                 _pin_on(OUT_BEEPER);
                                 delay_us(50);
                                 //beep_pin = 0;
                                 _pin_off(OUT_BEEPER);
-                                if (!LcdIsPwrDown()) led_refresh(2);
+                                if (!LcdIsPwrDown()) UserLight(2);
                                 delay_us(300);
                         }
                 }
@@ -204,10 +203,10 @@ _isr_ext0(void)
         } else {
                 if ((key_press >= 10) && (key_press <= 50) && (!key2_pressed)) {
                         if (!LcdIsPwrDown()) {
-                                if (IsBlackLight()) {
-                                        SetBlackLight(0);
+                                if (UserIsBlackLight()) {
+                                        UserSetBlackLight(0);
                                 } else {
-                                        SetBlackLight(1);
+                                        UserSetBlackLight(1);
                                 }
                         }
                 }

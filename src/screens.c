@@ -18,14 +18,14 @@
  *
  *****************************************************************************/
 
-#include "config.h"
 #include <stdio.h>
-#include "alarm.h"
-#include "clock.h"
 #include "compiler.h"
+#include "config.h"
+#include "clock.h"
 #include "display/n3310lcd.h"
 #include "sensor.h"
 #include "power.h"
+#include "user.h"
 
 static struct _mFlags {
         unsigned char menu_active :1;
@@ -59,19 +59,19 @@ void menu_modification_check(char selected)
 {
         switch (selected) {
         case 1:
-                IncAlarmLevel();
+                UserIncAlarmLevel();
                 break;
         case 2:
                 PowerIncSaveTime();
                 break;
         case 3:
-                SetSoundEnable(!IsSoundEnable());
+                UserSetSoundEnable(!UserIsSoundEnable());
                 break;
         case 4:
                 SensorClearDose();
                 ClockClearDays();
                 _interrupt_enable(INT_TIMER0_OVF);
-                AsyncBeep(1);
+                UserAsyncBeep(1);
                 delay_ms(100);
                 break;
         case 5:
@@ -99,10 +99,10 @@ unsigned char DrawMenu(unsigned char menu_select)
         LcdStringInv(buf, 0, 0);
 
         if (menu_select < 5) {
-                if (GetAlarmLevel() == 0) {
+                if (UserGetAlarmLevel() == 0) {
                         format(buf, PSTR("Тревога  откл."));
                 } else {
-                        format(buf, PSTR("Тревога%4uмкР"), GetAlarmLevel());
+                        format(buf, PSTR("Тревога%4uмкР"), UserGetAlarmLevel());
                 }
 
                 if (menu_select == 1) {
@@ -122,7 +122,7 @@ unsigned char DrawMenu(unsigned char menu_select)
                         LcdString(buf, 0, 3);
                 }
 
-                if (IsSoundEnable() == 0) {
+                if (UserIsSoundEnable() == 0) {
                         format(buf, PSTR("Звук     откл."));
                 } else {
                         format(buf, PSTR("Звук      вкл."));
