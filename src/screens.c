@@ -23,6 +23,7 @@
 #include "config.h"
 #include "clock.h"
 #include "display/n3310lcd.h"
+#include "screens.h"
 #include "sensor.h"
 #include "power.h"
 #include "user.h"
@@ -34,6 +35,37 @@ static struct _mFlags {
 
 /* Текстовый буфер для вывода на LCD */
 static char buf[15];
+/* Выбранный пункт меню */
+static unsigned char menuSelected;
+/* Стадия показа главного экрана. */
+static unsigned char windowStep;
+
+/*
+ * Обновление внутреннего состояния модуля.
+ * \param event Набор флагов CLOCK_EVENT_xx см. "clock.h"
+ */
+extern void ScreenClockEvent(unsigned char event)
+{
+        if ((event & CLOCK_EVENT_SECOND) == 0){
+                return;
+        }
+
+        if (++windowStep > 9) {
+                windowStep = 0;
+        }
+}
+
+/*
+ * Перерисовка главного экрана.
+ */
+extern void ScreenDrawWindow()
+{
+        if (flags.menu_active) {
+                DrawMenu(menuSelected);
+        } else {
+                main_window_draw(windowStep);
+        }
+}
 
 extern char IsMenuActive()
 {

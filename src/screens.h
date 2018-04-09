@@ -35,6 +35,17 @@ extern "C" {
 #endif
 
 /**
+ * Обновление внутреннего состояния модуля.
+ * \param event Набор флагов CLOCK_EVENT_xx см. "clock.h"
+ */
+extern void ScreenClockEvent(unsigned char event);
+
+/**
+ * Перерисовка главного экрана.
+ */
+extern void ScreenDrawWindow();
+
+/**
  *
  * \return 0 in menu not active
  */
