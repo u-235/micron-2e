@@ -139,6 +139,8 @@ eeprom static unsigned char eeSaveDelay = POWER_SAVE_DELAY_DEFAULT
  */
 extern void PowerInit()
 {
+        /* Режим сна - Standby, внешние прерывания по низкому уровню. */
+        MCUCR = (1 << SM2) | (1 << SM1);
         saveDelay = _eemem_read8(&eeSaveDelay);
         RunMeasure();
 }
@@ -299,6 +301,8 @@ _isr_adc(void)
                 return;
         }
 
+        /* Возвращаем режим сна - Standby. И останавливаем АЦП. */
+        MCUCR = (1 << SM2) | (1 << SM1);
         ADCSRA = 0x00;
         ACSR = 0x00;
         ADMUX = 0x00;
@@ -338,7 +342,8 @@ static void RunMeasure()
          * В версии с радикота измерение происходило в режиме сна для
          * уменьшения помех. Однако на мой взгляд в этом нет необходимости,
          * так как младшие два разряда отбрасываются и используется серия
-         * измерений.
+         * измерений. Однако, без режима ADC Noise Reduction МК не проснется от
+         * прерывания от АЦП.
          *
          * Общие настройки: разрешаем прерывания, измерение в цикле,
          * предделитель на 64 (частота АЦП 125kHz при шине 8mHz). Используются
@@ -361,6 +366,8 @@ static void RunMeasure()
         ADMUX = (1 << REFS1) | (1 << REFS0) | (1 << ADLAR) | (1 << MUX2)
         | (1 << MUX1) | (1 << MUX0);
 #endif
+        /* Режим сна - ADC Noise Reduction. */
+        MCUCR = (1 << SM0);
         /* Запуск АЦП */
         ADCSRA |= (1 << ADSC);
 }
