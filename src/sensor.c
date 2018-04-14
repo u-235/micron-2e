@@ -183,15 +183,15 @@ extern unsigned int SensorGetRadiation(unsigned char period)
         if (period == 0) {
                 return 0;
         }
-        if (period > SENSOR_INDEX_MAX) {
-                period = SENSOR_INDEX_MAX;
+        if (period > SENSOR_INDEX_MAX + 1) {
+                period = SENSOR_INDEX_MAX + 1;
         }
 
-        for (i = 0; i <= period; i++) {
+        for (i = 1; i <= period; i++) {
                 retval += impMassive[i];
         }
         /* Не люблю магию, но тут 3600 - это количество секунд в часе. */
-        return retval / (period + 1) * (3600 / SENSOR_SENSITIVITY);
+        return retval / (period) * (3600 / SENSOR_SENSITIVITY);
 }
 
 /*
@@ -310,12 +310,18 @@ extern void SensorClockEvent(unsigned char event)
 
 _isr_ext1(void)
 {
-        RunCharge(realTicksHit);
         impHits = 1;
         impMassive[0]++;
         doseHour++;
-        /* TODO Нужно улучшить - отслеживать состояние на входе INT1 */
-        delay_us(1);
+        _interrupt_disable(INT_EXT1);
+        _sei();
+        RunCharge(realTicksHit);
+        /* Ожидание окончания импульса от датчика. */
+        while (_is_pin_clean(IN_SENSOR)) {
+                /* TODO сделать защиту от зависания при неиспраности датчика. */
+                _nop();
+        }
+        _interrupt_enable(INT_EXT1);
 }
 
 /*************************************************************
@@ -341,11 +347,13 @@ static void RunCharge(unsigned char ticks)
         unsigned char i, j;
 
         for (i = 0; i < ticks; i++) {
+                _cli();
                 _pin_on(OUT_PUMP_SWITCH);
                 for (j = pulseDuration; j > 0; j--) {
                         _nop();
                 }
                 _pin_off(OUT_PUMP_SWITCH);
+                _sei();
                 delay_us(10);
                 _wdr();
         }
