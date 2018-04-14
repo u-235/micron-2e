@@ -139,8 +139,8 @@ eeprom static unsigned char eeSaveDelay = POWER_SAVE_DELAY_DEFAULT
  */
 extern void PowerInit()
 {
-        /* Режим сна - Standby, внешние прерывания по низкому уровню. */
-        MCUCR = (1 << SM2) | (1 << SM1);
+        /* Режим сна - Power-save, внешние прерывания по низкому уровню. */
+        MCUCR = (1 << SE) | (1 << SM1) | (1 << SM0);
         saveDelay = _eemem_read8(&eeSaveDelay);
         RunMeasure();
 }
@@ -301,11 +301,12 @@ _isr_adc(void)
                 return;
         }
 
-        /* Возвращаем режим сна - Standby. И останавливаем АЦП. */
-        MCUCR = (1 << SM2) | (1 << SM1);
+        /* Возвращаем режим сна - Power-save. И останавливаем АЦП. */
+        MCUCR = (1 << SE) | (1 << SM1) | (1 << SM0);
         ADCSRA = 0x00;
         ACSR = 0x00;
         ADMUX = 0x00;
+        _sei();
 #ifdef POWER_LION
         btrVoltage = measureVoltage
                         - (unsigned int) (ADC_BANDGAP_VS_VCC * ADC_MAX
@@ -315,9 +316,9 @@ _isr_adc(void)
                         / btrVoltage;
 #else
         btrVoltage = measureVoltage
-        * ((unsigned int) (100 * ADC_INTERNAL_REFERENCE
+                        * ((unsigned int) (100 * ADC_INTERNAL_REFERENCE
                                         * MEASURE_CIRCUIT_SCALE)
-                        / VOLTAGE_MEASURE_CYCLE )/ ADC_MAX;
+                                        / VOLTAGE_MEASURE_CYCLE )/ ADC_MAX;
 #endif
         if (btrVoltage > POWER_VOLTAGE_HIGH) {
                 btrVoltage = POWER_VOLTAGE_HIGH;
@@ -367,7 +368,7 @@ static void RunMeasure()
         | (1 << MUX1) | (1 << MUX0);
 #endif
         /* Режим сна - ADC Noise Reduction. */
-        MCUCR = (1 << SM0);
+        MCUCR = (1 << SE) | (1 << SM0);
         /* Запуск АЦП */
         ADCSRA |= (1 << ADSC);
 }
