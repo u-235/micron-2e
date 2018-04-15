@@ -12,8 +12,21 @@
 #include "sensor.h"
 #include "power.h"
 
-#define SCALE_MIN 3U
+#define SCALE_MIN       3U
+/**
+ *  Количество импульсов накачки при инициализации.
+ */
 #define PUMP_TICKS_INIT 6000UL
+/**
+ * Максимальное время в секундах между импульсами, при котором функцией
+ * SensorError() ещё не выдаётся ошибка.
+ */
+#define SENSOR_TIMEOUT          7U
+/**
+ * Максимальная длительность импульса от датчика, при котором функцией
+ * SensorError() ещё не выдаётся ошибка. Измеряется в микросекундах.
+ */
+#define SENSOR_HIT_DURATION     7U
 
 /*************************************************************
  *      Private function prototype
@@ -58,6 +71,15 @@ static unsigned char ticksPeriodic;
 /* Количество импульсов накачки при сработке датчика, рабочее значение. */
 static unsigned char ticksHit;
 
+/* Счётчик секунд между импульсами. */
+static unsigned char timeout;
+/* Состояние ошибки. */
+static unsigned char error;
+/* Уровень радиации, выше которого срабатывает тревога. */
+static unsigned int alarmLevel;
+/* Состояние тревоги. */
+static unsigned char alarm;
+
 /*************************************************************
  *      Variable in EEPROM
  *************************************************************/
@@ -68,6 +90,7 @@ static eeprom unsigned char eePulseDuration = PUMP_PULSE_WIDTH_DEFAULT;
 static eeprom unsigned char eeTicksPeriodic = PUMP_TICKS_PERIODIK_DEFAULT;
 /* Количество импульсов накачки при сработке датчика, настройка. */
 static eeprom unsigned char eeTicksHit = PUMP_TICKS_HIT_DEFAULT;
+static eeprom unsigned int eeAlarmLevel = 50;
 
 /*************************************************************
  *      Public function
@@ -88,6 +111,7 @@ extern void SensorInit()
         pulseDuration = _eemem_read8(&eePulseDuration);
         ticksPeriodic = _eemem_read8(&eeTicksPeriodic);
         ticksHit = _eemem_read8(&eeTicksHit);
+        alarmLevel = _eemem_read16(&eeAlarmLevel);
         CalculatePump(PowerVoltage());
         for (i = PUMP_TICKS_INIT / 255; i > 0; i--) {
                 RunCharge(255);
@@ -172,6 +196,70 @@ extern void SensorIncTicksHit()
 }
 
 /*
+ * Возвращает уровень радиации, выше которого функция SensorIsAlarm() выдаст
+ * тревогу.
+ * \return Уровень радиации в мкР/час.
+ */
+extern unsigned int SensorGetAlarmLevel()
+{
+        return alarmLevel;
+}
+
+/*
+ * Устанавливает уровень радиации, выше которого функция SensorIsAlarm() выдаст
+ * тревогу.
+ * \param lvl Уровень радиации в мкР/час. При превышении значения 9999
+ *      сбрасывается в ноль.
+ */
+extern void SensorSetAlarmLevel(unsigned int lvl)
+{
+        if (lvl > 9999) {
+                lvl = 0;
+        }
+        alarmLevel = lvl;
+        _eemem_write16(&eeAlarmLevel, lvl);
+}
+
+/*
+ * Увеличивает уровень радиации, выше которого функция SensorIsAlarm() выдаст
+ * тревогу.
+ * \param lvl Уровень радиации в мкР/час. При превышении значения 9999
+ *      сбрасывается в ноль.
+ */
+extern void SensorIncAlarmLevel()
+{
+        unsigned int lvl = alarmLevel;
+
+        if (lvl >= 1000) {
+                lvl += 1000;
+        } else if (lvl >= 100) {
+                lvl += 100;
+        } else {
+                lvl += 25;
+        }
+        SensorSetAlarmLevel(lvl);
+}
+
+/*
+ * Показывает, был ли превышен уровень радиации. Проверка происходит по каждому
+ * секундному событию от часов.
+ * \return Ноль если превышения не было.
+ */
+extern char SensorIsAlarm()
+{
+        return alarm;
+}
+
+/*
+ * Показывает состояние дтчика.
+ * \return Ноль если датчик исправен.
+ */
+extern char SensorError()
+{
+        return error;
+}
+
+/*
  * Возвращает уровень радиации за указанный период в мкР/ч
  * \param period Период в секундах, от 1 до #SENSOR_INDEX_MAX + 1
  * \return Уровень радиации в мкР/ч.
@@ -191,7 +279,7 @@ extern unsigned int SensorGetRadiation(unsigned char period)
                 retval += impMassive[i];
         }
         /* Не люблю магию, но тут 3600 - это количество секунд в часе. */
-        return retval / (period) * (3600 / SENSOR_SENSITIVITY);
+        return retval / period * (3600 / SENSOR_SENSITIVITY);
 }
 
 /*
@@ -288,6 +376,22 @@ extern void SensorClockEvent(unsigned char event)
                 _cli();
                 impMassive[0] = 0;
                 _sei();
+
+                if (alarmLevel != 0
+                                && SensorGetRadiation(SENSOR_INDEX_MAX + 1)
+                                                > (alarmLevel - alarm)) {
+                        alarm = 1;
+                } else {
+                        alarm = 0;
+                }
+
+                if (timeout < SENSOR_TIMEOUT) {
+                        timeout++;
+                }
+                if (timeout == SENSOR_TIMEOUT) {
+                        error = 1;
+                }
+
                 RunCharge(realTicksPeriodic);
         }
 
@@ -313,15 +417,19 @@ _isr_ext1(void)
         impHits = 1;
         impMassive[0]++;
         doseHour++;
+        timeout = 0;
         _interrupt_disable(INT_EXT1);
         _sei();
         RunCharge(realTicksHit);
         /* Ожидание окончания импульса от датчика. */
-        while (_is_pin_clean(IN_SENSOR)) {
-                /* TODO сделать защиту от зависания при неиспраности датчика. */
-                _nop();
+        for (error = 0; error < SENSOR_HIT_DURATION; error++) {
+                if (_is_pin_clean(IN_SENSOR)) {
+                        error = 0;
+                        _interrupt_enable(INT_EXT1);
+                        break;
+                }
+                delay_us(1);
         }
-        _interrupt_enable(INT_EXT1);
 }
 
 /*************************************************************

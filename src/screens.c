@@ -91,7 +91,7 @@ void menu_modification_check(char selected)
 {
         switch (selected) {
         case 1:
-                UserIncAlarmLevel();
+                SensorIncAlarmLevel();
                 break;
         case 2:
                 PowerIncSaveTime();
@@ -102,9 +102,6 @@ void menu_modification_check(char selected)
         case 4:
                 SensorClearDose();
                 ClockClearDays();
-                _interrupt_enable(INT_TIMER0_OVF);
-                UserAsyncBeep(1);
-                delay_ms(100);
                 break;
         case 5:
                 ClockIncHours();
@@ -131,10 +128,10 @@ unsigned char DrawMenu(unsigned char menu_select)
         LcdStringInv(buf, 0, 0);
 
         if (menu_select < 5) {
-                if (UserGetAlarmLevel() == 0) {
+                if (SensorGetAlarmLevel() == 0) {
                         format(buf, PSTR("Тревога  откл."));
                 } else {
-                        format(buf, PSTR("Тревога%4uмкР"), UserGetAlarmLevel());
+                        format(buf, PSTR("Тревога%4uмкР"), SensorGetAlarmLevel());
                 }
 
                 if (menu_select == 1) {
