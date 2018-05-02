@@ -61,9 +61,7 @@ extern void SensorSetAlarmLevel(unsigned int lvl);
 
 /**
  * Увеличивает уровень радиации, выше которого функция SensorIsAlarm() выдаст
- * тревогу.
- * \param lvl Уровень радиации в мкР/час. При превышении значения 9999
- *      сбрасывается в ноль.
+ * тревогу. При превышении значения 9999 сбрасывается в ноль.
  */
 extern void SensorIncAlarmLevel();
 
@@ -75,7 +73,7 @@ extern void SensorIncAlarmLevel();
 extern char SensorIsAlarm();
 
 /**
- * Показывает состояние дтчика.
+ * Показывает состояние датчика.
  * \return Ноль если датчик исправен.
  */
 extern char SensorError();
