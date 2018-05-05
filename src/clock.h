@@ -31,6 +31,14 @@ extern "C" {
  * Состояние счетчика дней изменилось.
  */
 #define CLOCK_EVENT_DAY    0x08
+/**
+ * Произошло событие доли секунды.
+ */
+#define CLOCK_EVENT_PORTION 0x10
+/**
+ * Сколько событий #CLOCK_EVENT_PORTION происходит за секунду
+ */
+#define CLOCK_DIVIDER 4U
 
 /**
  * Инициализация часов.

@@ -12,22 +12,34 @@
 #include "config.h"
 #include "sensor.h"
 
+/*************************************************************
+ *      Private function prototype
+ *************************************************************/
+
+/*************************************************************
+ *      Variable in RAM
+ *************************************************************/
+
 static unsigned char event = 0;
 static unsigned char second_tick = 0;
 static unsigned char minute_tick = 0;
 static unsigned char hour_tick = 0;
 static unsigned int days = 0;
 
+/*************************************************************
+ *      Public function
+ *************************************************************/
+
 extern void ClockInit()
 {
         /* Асинхронный режим работы
-         * Пределитель = 128
-         * 32768 Hz / 128 / 256 = переполнение раз за секунду
+         * Предделитель = 128
+         * 32768 Hz / 128 / 64 = переполнение 4 раза за секунду
          * Прерывания по переполнению
          */
         ASSR = (1 << AS2);
         TCNT2 = 0;
-        OCR2 = 0;
+        OCR2 = 64;
         TCCR2 |= (1 << CS22) | (1 << CS20);
         _interrupt_enable(INT_TIMER2_OVF);
 }
@@ -115,11 +127,24 @@ extern void ClockClearDays()
         days = 0;
 }
 
+/*************************************************************
+ *      Interrupt handler
+ *************************************************************/
+
 /**
  * Timer overflow interrupt handler
  */
 _isr_timer2_ovf(void)
 {
+        static unsigned char counter = 0;
+
+        event |= CLOCK_EVENT_PORTION;
+
+        if (counter++ < CLOCK_DIVIDER) {
+                return;
+        }
+        counter = 0;
+
         event |= CLOCK_EVENT_SECOND;
 
         if (ClockIncSeconds() == 0) {
@@ -133,3 +158,7 @@ _isr_timer2_ovf(void)
                 }
         }
 }
+
+/*************************************************************
+ *      Private function
+ *************************************************************/
