@@ -161,15 +161,15 @@ extern void PowerSetMode(unsigned char mode)
                 LcdInit();
                 break;
         case POWER_MODE_SAVE:
-                LcdPwrOff();
+                //LcdPwrOff();
                 break;
         case POWER_MODE_OFF:
         default:
                 _interrupt_disable(INT_EXT1);
                 LcdPwrOff();
-                UserAsyncBeep(0);
-                SetMenuActive(0);
-                UserLight(2);
+                //UserAsyncBeep(0);
+                //SetMenuActive(0);
+                //UserLight(2);
                 GICR = 0x40;
                 MCUCR = 0xA0;
                 DDRB = 0x00;
