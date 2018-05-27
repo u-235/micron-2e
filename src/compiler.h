@@ -47,6 +47,7 @@ extern "C" {
 # define F_CPU 8000000UL
 #endif
 
+#include <intrinsics.h>
 #define delay_ms(ms)    __delay_cycles(F_CPU/1000UL*ms)
 #define delay_us(us)    __delay_cycles(F_CPU/1000000UL*us)
 
@@ -99,9 +100,11 @@ extern "C" {
 #define _eemem_read16(a) eeprom_read_word((uint16_t*)a)
 #define _eemem_write8(a, v) eeprom_write_byte((uint8_t*)a, v)
 #define _eemem_write16(a, v) eeprom_write_word((uint16_t*)a, v)
+# define ESTR(s) (__extension__({static const char __c[] EEMEM = (s); &__c[0];}))
 
 #elif defined __CODEVISIONAVR__
 #define PSTR(s) ((flash char *)(s))
+#define ESTR(s) ((eeprom char *)(s))
 
 #define format sprintf
 
@@ -112,17 +115,19 @@ extern "C" {
 
 #elif defined __ICCAVR__
         /* IAR AVR */
+#include <pgmspace.h>
 #define flash __flash
+#define eeprom __eeprom
 
 #define PSTR(s) ((flash char *)(s))
+#define ESTR(s) ((eeprom char *)(s))
 
-#define format sprintf
+#define format sprintf_P
 
-#define eeprom __eeprom
-#define _eemem_read8(a) ((eeprom char)*a)
-#define _eemem_read16(a) ((eeprom int)*a)
-#define _eemem_write8(a, v) {(eeprom char)*a=v;}
-#define _eemem_write16(a, v) {(eeprom int)*a=v;}
+#define _eemem_read8(a) (*((eeprom char*)a))
+#define _eemem_read16(a) (*((eeprom int*)a))
+#define _eemem_write8(a, v) {*((eeprom char*)a)=v;}
+#define _eemem_write16(a, v) {*((eeprom int*)a)=v;}
 
 #endif
 
@@ -166,9 +171,7 @@ extern "C" {
 #pragma vector=TIMER2_OVF_vect
         _isr_timer2_ovf(void);
 
-#warning not sure about interrupts
 #endif
-
 
         /* some useful defines */
 #define _set_mask(dst, mask) dst|=(mask)
@@ -191,7 +194,6 @@ extern "C" {
 #define _is_pin_clean(x) __is_pin_clean(x)
 #define _is_pin_set(x) __is_pin_set(x)
 
-
 #define _interrupt_enable(i) _set_bit(i)
 #define _interrupt_disable(i) _set_bit(i)
 
@@ -199,7 +201,6 @@ extern "C" {
 #define INT_EXT1        GICR, INT1
 #define INT_TIMER0_OVF  TIMSK, TOIE0
 #define INT_TIMER2_OVF  TIMSK, TOIE2
-
 
 #ifdef _cplusplus
         extern "C" {
