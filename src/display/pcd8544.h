@@ -87,7 +87,7 @@ extern "C" {
 #define CMAKE_SPI_MODE(s) (CHN_SPI_MODE + ((s) & MASK_SPI_MODE))
 
 #ifdef _cplusplus
-        extern "C" {
+}
 #endif
 
 #endif /* DISPLAY_PCD8544_H_ */

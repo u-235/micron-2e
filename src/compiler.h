@@ -203,7 +203,7 @@ extern "C" {
 #define INT_TIMER2_OVF  TIMSK, TOIE2
 
 #ifdef _cplusplus
-        extern "C" {
+}
 #endif
 
 #endif /* SRC_COMPILLER_H_ */

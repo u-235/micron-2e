@@ -57,7 +57,7 @@ extern void UserSetSoundEnable(char on);
 extern void UserLight(unsigned char command);
 
 #ifdef _cplusplus
-extern "C" {
+}
 #endif
 
 #endif /* SRC_USER_H_ */

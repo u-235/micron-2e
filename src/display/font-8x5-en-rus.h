@@ -49,7 +49,7 @@ extern "C" {
 extern char * GetGlif(unsigned char ch);
 
 #ifdef _cplusplus
-extern "C" {
+}
 #endif
 
 #endif /* DISPLAY_FONT_8X5_EN_RUS_H_ */

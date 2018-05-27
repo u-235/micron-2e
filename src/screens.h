@@ -84,7 +84,7 @@ extern void ScreenDraw();
 extern void ScreenHandleKey(unsigned char key);
 
 #ifdef _cplusplus
-extern "C" {
+}
 #endif
 
 #endif /* SRC_SCREENS_H_ */

@@ -138,7 +138,7 @@ extern unsigned int ClockGetDays();
 extern void ClockClearDays();
 
 #ifdef _cplusplus
-extern "C" {
+}
 #endif
 
 #endif /* SRC_CLOCK_H_ */

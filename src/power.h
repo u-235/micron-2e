@@ -117,7 +117,7 @@ extern unsigned int PowerVoltage();
 extern unsigned char PowerCharge();
 
 #ifdef _cplusplus
-extern "C" {
+}
 #endif
 
 #endif /* SRC_POWER_H_ */

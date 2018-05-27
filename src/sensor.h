@@ -161,7 +161,7 @@ extern unsigned int SensorGetTicksHit();
 extern void SensorIncTicksHit();
 
 #ifdef _cplusplus
-extern "C" {
+}
 #endif
 
 #endif /* SRC_SENSOR_H_ */
