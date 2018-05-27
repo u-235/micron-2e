@@ -15,58 +15,46 @@
 extern "C" {
 #endif
 
+#define USER_KEY_OK_DOWN        0x02
+#define USER_KEY_OK_UP          0x03
+#define USER_KEY_MENU_DOWN      0x04
+#define USER_KEY_MENU_UP        0x05
+#define USER_KEY_POWER_DOWN     0x06
+#define USER_KEY_POWER_UP       0x07
+#define USER_KEY_PLUS_DOWN      0x12
+#define USER_KEY_PLUS_UP        0x13
+
+#define USER_ALERT_DOSE         1U
+#define USER_ALERT_SENSOR       2U
+#define USER_ALERT_POWER        3U
+
 /**
- * Инициализация. Загрузка настрое из EEPROM.
+ * Инициализация. Загрузка настроек из EEPROM.
  */
 extern void UserInit();
 
-extern unsigned int UserGetAlarmLevel();
-
-extern void UserSetAlarmLevel(unsigned int lvl);
-
-extern void UserIncAlarmLevel();
-
-extern void UserAlarmCheck();
-
-extern char UserIsAlarm();
-
-extern void UserSetCanselAlarm(char on);
-
-extern char UserIsCanselAlarm();
-
 /**
- *
- * \return Ноль если звук выключен
+ * Обновление внутреннего состояния модуля.
+ * \param event Набор флагов CLOCK_EVENT_xx см. "clock.h"
  */
+extern void UserClockEvent(unsigned char event);
+
+extern unsigned char UserGetKey();
+
+extern void UserAlert(unsigned char alert);
+
+extern void UserAlertCansel(unsigned char alert);
+
 extern char UserIsSoundEnable();
 
-extern void UserAsyncBeep(char on);
-
-extern char UserIsAsyncBeep();
-
-extern void UserSetBlackLight(char on);
-
-extern char UserIsBlackLight();
-
-/**
- *
- * \param on Ноль для выключения звука.
- */
 extern void UserSetSoundEnable(char on);
-
-extern void UserSensorCheck(unsigned char second);
 
 /**
  *
  * \param command
  *      - 0 - выкл светодиодов
- *      - 1 - восстановление состояния перед выключением.
- *      - 2 - тревога, красный цвет
- *      - 3 - подсветка вкл
  */
 extern void UserLight(unsigned char command);
-
-extern void UserAlarmSound();
 
 #ifdef _cplusplus
 extern "C" {

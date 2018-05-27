@@ -1,22 +1,11 @@
-/*****************************************************************************
+/**
+ * \file
+ * \brief Реализация графического интерфейса.
+ * \details
  *
- *  micron 2 v 1.2.6
- *  Copyright (C) 2018  Nick Egorrov
- *
- *  This program is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
- *****************************************************************************/
+ * \author Nick Egorrov
+ * \copyright GNU Public License 3
+ */
 
 #include <stdio.h>
 #include "compiler.h"
@@ -28,10 +17,49 @@
 #include "power.h"
 #include "user.h"
 
-static struct _mFlags {
-        unsigned char menu_active :1;
-        unsigned char need_update :1;
-} flags;
+/*************************************************************
+ *      Private function prototype
+ *************************************************************/
+
+/**
+ * Обработка кнопок в режиме показа меню.
+ * \param key Код состояния кнопки, см. USER_KEY_xx в файле user.h
+ */
+static void HandleKeyMenu(unsigned char key);
+
+/**
+ * Отображение основного окна.
+ */
+static void DrawWindow();
+
+/**
+ * Отображение меню.
+ */
+static void DrawMenu();
+
+/**
+ * Отображение сообщения при включении.
+ */
+static void DrawIntro();
+
+/**
+ * Отображение сообщения при выключении.
+ */
+static void DrawBay();
+
+/**
+ * Отображение тревожного сообщения высокого уровня радиации.
+ */
+static void DrawAlertDose();
+
+/**
+ * Отображение тревожного сообщения при разряде батарейки.
+ */
+static void DrawAlertPower();
+
+/*************************************************************
+ *      Variable in RAM
+ *************************************************************/
 
 /* Текстовый буфер для вывода на LCD */
 static char buf[15];
@@ -39,14 +67,20 @@ static char buf[15];
 static unsigned char menuSelected;
 /* Стадия показа главного экрана. */
 static unsigned char windowStep;
+static unsigned char show;
+static char invalidate;
+
+/*************************************************************
+ *      Public function
+ *************************************************************/
 
 /*
  * Обновление внутреннего состояния модуля.
- * \param event Набор флагов CLOCK_EVENT_xx см. "clock.h"
+ * \param event Набор флагов CLOCK_EVENT_xx см. clock.h
  */
 extern void ScreenClockEvent(unsigned char event)
 {
-        if ((event & CLOCK_EVENT_SECOND) == 0){
+        if ((event & CLOCK_EVENT_SECOND) == 0) {
                 return;
         }
 
@@ -56,40 +90,120 @@ extern void ScreenClockEvent(unsigned char event)
 }
 
 /*
- * Перерисовка главного экрана.
+ * Изменяет (если это возможно) отображаемый экран. Для отмены этого используйте
+ * ScreenHide(). Эти функции только меняют внутреннее состояние модуля, что бы
+ * изменения появились вызовите ScreenDraw().
+ * \param view Требуемый экран, может быть одним из #SCREEN_VIEW_ALERT_DOSE,
+ * #SCREEN_VIEW_ALERT_POWER, #SCREEN_VIEW_BAY, #SCREEN_VIEW_INTRO,
+ * #SCREEN_VIEW_MAIN, #SCREEN_VIEW_MENU.
  */
-extern void ScreenDrawWindow()
+extern void ScreenShow(unsigned char view)
 {
-        if (flags.menu_active) {
-                DrawMenu(menuSelected);
-        } else {
-                main_window_draw(windowStep);
+        if (view == SCREEN_VIEW_ALERT_POWER && show == SCREEN_VIEW_ALERT_DOSE) {
+                return;
+        }
+
+        show = view;
+        return;
+}
+
+/*
+ * Отменяет (если это возможно) результат ScreenShow(). Эти функции только
+ * меняют внутреннее состояние модуля, что бы изменения появились вызовите
+ * ScreenDraw().
+ * \param view Отменяемый экран, может быть одним из #SCREEN_VIEW_ALERT_DOSE,
+ * #SCREEN_VIEW_ALERT_POWER, #SCREEN_VIEW_BAY, #SCREEN_VIEW_INTRO,
+ * #SCREEN_VIEW_MAIN, #SCREEN_VIEW_MENU.
+ */
+extern void ScreenHide(unsigned char view)
+{
+        if (show == view) {
+                show = SCREEN_VIEW_MAIN;
+        }
+        return;
+}
+
+/*
+ * Перерисовка экрана.
+ */
+extern void ScreenDraw()
+{
+        static unsigned char old = 0;
+
+        if (PowerGetMode() == POWER_MODE_OFF) {
+                return;
+        }
+
+        if (old != show) {
+                invalidate = 1;
+        }
+
+        switch (show) {
+        case SCREEN_VIEW_INTRO:
+                DrawIntro();
+                break;
+        case SCREEN_VIEW_BAY:
+                DrawBay();
+                break;
+        case SCREEN_VIEW_MENU:
+                DrawMenu();
+                break;
+        case SCREEN_VIEW_ALERT_DOSE:
+                DrawAlertDose();
+                break;
+        case SCREEN_VIEW_ALERT_POWER:
+                DrawAlertPower();
+                break;
+        case SCREEN_VIEW_MAIN:
+        default:
+                DrawWindow();
         }
 }
 
-extern char IsMenuActive()
+/*
+ * Обработка кнопок текущим экраном.
+ * \param key Код состояния кнопки, см. USER_KEY_xx в файле user.h
+ * \see ScreenShow()
+ */
+extern void ScreenHandleKey(unsigned char key)
 {
-        return flags.menu_active;
+
+        switch (show) {
+        case SCREEN_VIEW_MENU:
+                HandleKeyMenu(key);
+                break;
+        case SCREEN_VIEW_MAIN:
+                if (key == USER_KEY_MENU_UP) {
+                        menuSelected = 1;
+                        ScreenShow(SCREEN_VIEW_MENU);
+                }
+                break;
+        default:
+                if (key == USER_KEY_OK_UP) {
+                        ScreenHide(show);
+                }
+        }
+        return;
 }
 
-extern void SetMenuActive(char act)
-{
-        flags.menu_active = act;
-}
+/*************************************************************
+ *      Private function
+ *************************************************************/
 
-extern char IsNeedUpdate()
+static void HandleKeyMenu(unsigned char key)
 {
-        return flags.need_update;
-}
+        if (key == USER_KEY_OK_UP) {
+                menuSelected++;
+                if (menuSelected > 9) {
+                        menuSelected = 0;
+                        ScreenHide(SCREEN_VIEW_MENU);
+                        return;
+                }
+        } else if (key != USER_KEY_PLUS_UP) {
+                return;
+        }
 
-extern void SetNeedUpdate(char act)
-{
-        flags.need_update = act;
-}
-
-void menu_modification_check(char selected)
-{
-        switch (selected) {
+        switch (menuSelected) {
         case 1:
                 SensorIncAlarmLevel();
                 break;
@@ -119,22 +233,28 @@ void menu_modification_check(char selected)
                 SensorIncPulseDuration();
                 break;
         }
+        return;
 }
-/***********************************************************************************************/
 
-unsigned char DrawMenu(unsigned char menu_select)
+static void DrawMenu()
 {
+        if (invalidate == 0) {
+                return;
+        }
+        invalidate = 0;
+
         format(buf, PSTR("     МЕНЮ     "));
         LcdStringInv(buf, 0, 0);
 
-        if (menu_select < 5) {
+        if (menuSelected < 5) {
                 if (SensorGetAlarmLevel() == 0) {
                         format(buf, PSTR("Тревога  откл."));
                 } else {
-                        format(buf, PSTR("Тревога%4uмкР"), SensorGetAlarmLevel());
+                        format(buf, PSTR("Тревога%4uмкР"),
+                                        SensorGetAlarmLevel());
                 }
 
-                if (menu_select == 1) {
+                if (menuSelected == 1) {
                         LcdStringInv(buf, 0, 2);
                 } else {
                         LcdString(buf, 0, 2);
@@ -145,7 +265,7 @@ unsigned char DrawMenu(unsigned char menu_select)
                 } else {
                         format(buf, PSTR("Сон    %4uсек"), PowerGetSaveTime());
                 }
-                if (menu_select == 2) {
+                if (menuSelected == 2) {
                         LcdStringInv(buf, 0, 3);
                 } else {
                         LcdString(buf, 0, 3);
@@ -157,52 +277,52 @@ unsigned char DrawMenu(unsigned char menu_select)
                         format(buf, PSTR("Звук      вкл."));
                 }
 
-                if (menu_select == 3) {
+                if (menuSelected == 3) {
                         LcdStringInv(buf, 0, 4);
                 } else {
                         LcdString(buf, 0, 4);
                 }
 
                 format(buf, PSTR("Сброс  дозы   "));
-                if (menu_select == 4) {
+                if (menuSelected == 4) {
                         LcdStringInv(buf, 0, 5);
                 } else {
                         LcdString(buf, 0, 5);
                 }
 
-        } else if ((menu_select > 4) && (menu_select < 7)) {  //страница меню2
-
+        } else if ((menuSelected > 4) && (menuSelected < 7)) {
+                /* 2 страница меню. */
                 format(buf, PSTR("Часы     %2u:  "), ClockGetHours());
-                if (menu_select == 5) {
+                if (menuSelected == 5) {
                         LcdStringInv(buf, 0, 2);
                 } else {
                         LcdString(buf, 0, 2);
                 }
 
                 format(buf, PSTR("Минуты     :%2u"), ClockGetMimutes());
-                if (menu_select == 6) {
+                if (menuSelected == 6) {
                         LcdStringInv(buf, 0, 3);
                 } else {
                         LcdString(buf, 0, 3);
                 }
-        } else {  // страница меню3
-
+        } else {
+                /* 3 страница меню. */
                 format(buf, PSTR("Накачка %3uимп"), SensorGetTicksPeriodik());
-                if (menu_select == 7) {
+                if (menuSelected == 7) {
                         LcdStringInv(buf, 0, 2);
                 } else {
                         LcdString(buf, 0, 2);
                 }
 
                 format(buf, PSTR("При имп.%3uимп"), SensorGetTicksHit());
-                if (menu_select == 8) {
+                if (menuSelected == 8) {
                         LcdStringInv(buf, 0, 3);
                 } else {
                         LcdString(buf, 0, 3);
                 }
 
                 format(buf, PSTR("Импульс %3uмкс"), SensorGetPulseDuration());
-                if (menu_select == 9) {
+                if (menuSelected == 9) {
                         LcdStringInv(buf, 0, 4);
                 } else {
                         LcdString(buf, 0, 4);
@@ -210,34 +330,19 @@ unsigned char DrawMenu(unsigned char menu_select)
         }
 
         LcdUpdate();
-        if (menu_select > 9) {
-                flags.menu_active = 0;
-                menu_select = 1;
-                flags.need_update = 1;
-        }
-        return menu_select;
 }
-/***********************************************************************************************/
 
-void main_window_draw(unsigned char chrg_tick)
+static void DrawWindow()
 {
-        unsigned char i, j;
+        unsigned char i, j, old = 0;
 
-        /*
-         if (flags.imp) {
-
-         //    format (buf, "#");
-         //    LcdString(buf, 14,5);
-
-         if ((!LcdIsPwrDown()) & (flags.sound_bit)) {
-         flags.beep = 1;
-         TIMSK = 0x41;
-         led_refresh(1);
-
-         }
-         flags.imp = 0;
-         }
-         */
+        if (old != windowStep) {
+                invalidate = 1;
+        }
+        if (invalidate == 0) {
+                return;
+        }
+        invalidate = 0;
 
         format(buf, PSTR("%5u"), SensorGetRadiation(SENSOR_INDEX_MAX + 1));
         LcdStringBold(buf, 0, 1);
@@ -246,8 +351,6 @@ void main_window_draw(unsigned char chrg_tick)
         format(buf, PSTR(" ч "));
         LcdString(buf, 11, 2);
         LcdLine(66, 16, 83, 16, 1);
-
-        //    LcdLine (0,23, 30,23, 1);
 
         j = 0;
         for (i = 0; i <= SENSOR_INDEX_MAX; i++) {
@@ -260,12 +363,10 @@ void main_window_draw(unsigned char chrg_tick)
         LcdLine(0, 38, 36, 38, 1);
 
         format(buf, PSTR("%02u:%02u:%02u"), ClockGetHours(), ClockGetMimutes(),
-                        ClockGetSeconds());  //часы
+                        ClockGetSeconds());
         LcdString(buf, 0, 0);
-        // LcdLine (0,8, 83,8, 1);
 
-//  .Батарейка
-        if (chrg_tick > 5) {
+        if (windowStep > 5) {
                 format(buf, PSTR("^ %03u$"), PowerCharge());
         } else {
                 format(buf, PSTR("^%01u.%02uv"), PowerVoltage() / 10,
@@ -273,14 +374,11 @@ void main_window_draw(unsigned char chrg_tick)
         }
         LcdString(buf, 8, 0);
 
-        if (chrg_tick <= 3) {
+        if (windowStep <= 3) {
                 format(buf, PSTR("За час%5luмкР"), SensorGetDoseHour());
-        } else if (chrg_tick > 3 && chrg_tick <= 6) {
+        } else if (windowStep > 3 && windowStep <= 6) {
                 format(buf, PSTR("Сут.%7luмкР"), SensorGetDoseDay());
-        } else if (chrg_tick > 6) {
-                //(all_doze + day_doze) так как используем мкР для дозы, то выделил 7 разрядов
-                // то есть максим. отобр. значение - 9999999 мкР, при ЕРФ - 76 лет работы :D, при жизни возле 4-го  блока ЧАЭС - полгода  минимум!
-                //
+        } else {
                 format(buf, PSTR("%3uД%7luмкР"), ClockGetDays(),
                                 SensorGetDoseAll());
         }
@@ -289,21 +387,56 @@ void main_window_draw(unsigned char chrg_tick)
         LcdUpdate();
 }
 
-extern void DrawIntro()
+static void DrawIntro()
 {
+        if (invalidate == 0) {
+                return;
+        }
+        invalidate = 0;
+
         LcdClear();
-        format(buf, PSTR("   Микрон-2   "));
-        LcdStringInv(buf, 0, 2);
-        LcdUpdate();
-        format(buf, "Загрузка");
-        LcdString(buf, 0, 5);
+        format(buf, PSTR("   Микрон-2е  "));
+        LcdString(buf, 0, 1);
+        format(buf, PSTR("Загрузка"));
+        LcdString(buf, 0, 4);
         LcdUpdate();
 }
 
-extern void DrawBay()
+static void DrawBay()
 {
+        if (invalidate == 0) {
+                return;
+        }
+        invalidate = 0;
+
         LcdClear();
         format(buf, PSTR("  Выключение  "));
+        LcdString(buf, 0, 2);
+        LcdUpdate();
+}
+
+static void DrawAlertDose()
+{
+        if (invalidate == 0) {
+                return;
+        }
+        invalidate = 0;
+
+        format(buf, PSTR("   ОПАСНОЕ    "));
         LcdStringInv(buf, 0, 2);
+        format(buf, PSTR("  ИЗЛУЧЕНИЕ!  "));
+        LcdStringInv(buf, 0, 3);
+        LcdUpdate();
+}
+
+static void DrawAlertPower()
+{
+        if (invalidate == 0) {
+                return;
+        }
+        invalidate = 0;
+
+        format(buf, PSTR(" НИЗКИЙ ЗАРЯД!"));
+        LcdString(buf, 0, 4);
         LcdUpdate();
 }

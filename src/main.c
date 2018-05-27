@@ -1,268 +1,101 @@
-/*****************************************************************************
+/**
+ * \file
+ * \brief
+ * \details
  *
- *  micron 2 v 1.2.6
- *  Copyright (C) 2018  Nick Egorrov
- *
- *  This program is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
- *****************************************************************************/
+ * \author Nick Egorrov
+ * \copyright GNU Public License 3
+ */
 
 #include "compiler.h"
 #include "config.h"
 #include "clock.h"
-#include "display/n3310lcd.h"
 #include "power.h"
 #include "screens.h"
 #include "sensor.h"
 #include "user.h"
 
-static void InitHard();
-
-static char menu_select = 1;
-static unsigned char second = 0;
-static unsigned char chrg_tick = 0;
-
-static struct _mFlags {
-        unsigned char poweroff_bit :1;
-        unsigned char imp :1;
-        unsigned char impulse_recive :1;
-} flags;
-
-static unsigned char key_press = 0;
-static unsigned int display_time = 0;
-
-//********************************************************************
-
 void main(void)
 {
-        InitHard();
+        unsigned char delay;
+        WDTCR = 0x1F;
+        WDTCR = 0x0F;
+        _sei();
         PowerInit();
         ClockInit();
         PowerSetMode(POWER_MODE_ON);
+        ScreenShow(SCREEN_VIEW_INTRO);
+        ScreenDraw();
+        delay_ms(2000);
 
-        //beep_pin = 0;
-        _pin_off(OUT_BEEPER);
-        SetMenuActive(0);
-        UserLight(2);
-        LcdInit();
-        delay_ms(100);
-        UserLight(2);
-        delay_ms(100);
-        LcdPwrOn();
-        delay_ms(100);
-
-        DrawIntro();
-
-        if (PowerCheck() != 0) {
-                UserAlarmSound();
-                delay_ms(50);
-                UserAlarmSound();  //звук предупреждения о батарейке - 3 пика
-                delay_ms(50);
-                UserAlarmSound();
-        }
-
-        _cli();
-        SensorInit();
-        _sei();
-        //разрешаем прерывания
-
-        LcdClear();
-///////////////////////////////////////////////////////////
         while (1) {
-                unsigned char event = ClockGetEvent();
-                if (event) {
-                        second++;
-                        chrg_tick++;
-                        if (chrg_tick > 10) {
-                                chrg_tick = 0;
+                unsigned char event, key;
+                struct {
+                        char sensorBad :1;
+                        char powerBad :1;
+                        char sensorError :1;
+                } flags = {
+                        0, 0, 0
+                };
+
+                /* Получение и обработка событий программного таймера. */
+                event = ClockGetEvent();
+                SensorClockEvent(event);
+                PowerClockEvent(event);
+                UserClockEvent(event);
+                ScreenClockEvent(event);
+
+                /* Проверка превышения максимальной радиации. */
+                if (SensorIsAlarm()) {
+                        if (flags.sensorBad == 0) {
+                                flags.sensorBad = 1;
+                                UserAlert(USER_ALERT_DOSE);
+                                ScreenShow(SCREEN_VIEW_ALERT_DOSE);
                         }
-                        GICR = 0x00;
-                        UserLight(0);
-                        SensorClockEvent(event);
-                        delay_us(25);  //25
-                        UserLight(1);
-                        GICR = 0xC0;
+                } else {
+                        flags.sensorBad = 0;
+                        ScreenHide(SCREEN_VIEW_ALERT_DOSE);
                 }
 
-                if (flags.poweroff_bit) {
-                        _interrupt_disable(INT_TIMER0_OVF);
-                        UserAsyncBeep(0);
-                        _pin_off(OUT_BEEPER);
-                        DrawBay();
-                        delay_ms(4000);
+                /* Проверка работоспособности датчика. */
+                if (SensorError()) {
+                        if (flags.sensorBad == 0) {
+                                flags.sensorError = 1;
+                                UserAlert(USER_ALERT_SENSOR);
+                        }
+                } else {
+                        flags.sensorError = 0;
+                }
+
+                /* Проверка уровня заряда источника питания. */
+                if (PowerCheck()) {
+                        if (flags.powerBad == 0) {
+                                flags.powerBad = 1;
+                                UserAlert(USER_ALERT_POWER);
+                                ScreenShow(SCREEN_VIEW_ALERT_POWER);
+                        }
+                } else {
+                        flags.powerBad = 0;
+                        ScreenHide(SCREEN_VIEW_ALERT_POWER);
+                }
+
+                /* Получение и обработка событий от кнопок. */
+                key = UserGetKey();
+                if (key != 0) {
+                        PowerStartSaveTimer();
+                        ScreenHandleKey(key);
+                }
+
+                if (key == USER_KEY_POWER_DOWN) {
+                        ScreenShow(SCREEN_VIEW_BAY);
+                }
+
+                ScreenDraw();
+
+                if (key == USER_KEY_POWER_DOWN) {
+                        delay_ms(2000);
                         PowerSetMode(POWER_MODE_OFF);
-                        // TODO bad
-                        while (flags.poweroff_bit) {
-                                _sleep();
-                        }
                 }
-
-                if (IsNeedUpdate()) {
-                        SetNeedUpdate(0);
-                        UserSensorCheck(1);  // TODO IT'S NOT WORK
-                        _wdr();
-
-                        UserAlarmCheck();
-                        if ((_is_pin_clean(IN_KEY_PLUS)) && IsMenuActive()) {
-                                menu_modification_check(menu_select);
-                                display_time = 0;
-                                delay_ms(300);
-                        }
-
-                        UserLight(2);
-
-                        if (!LcdIsPwrDown()) {
-                                LcdClear();
-                                if (IsMenuActive()) {
-                                        menu_select = DrawMenu(menu_select);
-                                } else {
-                                        main_window_draw(chrg_tick);
-                                }
-                        }
-
-                }
-
-                if (!IsMenuActive()) {
-                        if (!UserIsAsyncBeep()) {
-                                _sleep();
-                        }
-                        _wdr();
-                } else {
-                        SetNeedUpdate(1);
-                }
+                _sleep();
         }
-}
-//********************************************************************
-
-_isr_ext0(void)
-{
-        char key2_pressed = 0;
-        int i;
-
-        SetNeedUpdate(1);
-        _pin_off(OUT_PUMP_SWITCH);
-
-        if (!LcdIsPwrDown()) {
-                if (UserIsAlarm() && (!UserIsCanselAlarm())) {
-                        UserSetCanselAlarm(1);
-                        UserAsyncBeep(0);
-                        _pin_off(OUT_BEEPER);
-                        UserLight(1);
-                        _interrupt_disable(INT_TIMER0_OVF);
-                } else {
-                        if (IsMenuActive()) {
-                                menu_select++;
-                        }
-                }
-        }
-
-        PowerStartSaveTimer();
-        if (TIMSK != 0x00) LcdPwrOn();
-        while ((_is_pin_clean(IN_KEY_INT)) && (!flags.poweroff_bit))  // проверка длительности удержания кнопки
-        {
-                delay_ms(100);
-                _wdr();
-                if (_is_pin_clean(IN_KEY_PLUS)) {
-                        key2_pressed = 1;
-                }
-                key_press++;
-
-                if ((key_press % 10) == 0) {
-                        for (i = 800; i > 0; i--) {
-                                UserLight(0);
-                                //beep_pin = 1;
-                                _pin_on(OUT_BEEPER);
-                                delay_us(50);
-                                //beep_pin = 0;
-                                _pin_off(OUT_BEEPER);
-                                if (!LcdIsPwrDown()) UserLight(2);
-                                delay_us(300);
-                        }
-                }
-
-                if (key_press > 50) {  // если держим более 5-ти секунд, то выключить устройство
-                        flags.poweroff_bit = 1;
-                        GICR = 0x00;
-                }
-        }
-        if ((key_press >= 10) && (key_press <= 50) && key2_pressed) {
-                if (IsMenuActive() == 0) {
-                        SetMenuActive(1);
-                }
-        } else {
-                if ((key_press >= 10) && (key_press <= 50) && (!key2_pressed)) {
-                        if (!LcdIsPwrDown()) {
-                                if (UserIsBlackLight()) {
-                                        UserSetBlackLight(0);
-                                } else {
-                                        UserSetBlackLight(1);
-                                }
-                        }
-                }
-        }
-        key_press = 0;
-
-}
-
-static void InitHard()
-{
-        WDTCR = 0x1F;
-        WDTCR = 0x0F;
-        _cli();
-
-        TCCR1A = 0x00;
-        TCCR1B = 0x00;
-        TCNT1H = 0x00;
-        TCNT1L = 0x00;
-        ICR1H = 0x00;
-        ICR1L = 0x00;
-        OCR1AH = 0x00;
-        OCR1AL = 0x00;
-        OCR1BH = 0x00;
-        OCR1BL = 0x00;
-
-        // Даем немного времени для стабилизации работы генератора
-        delay_ms(1000);
-
-        //PORTD.2 = 1;   Подтяжка на прерывание
-        //DDRD.2 = 0;
-        _pin_on(IN_KEY_INT);
-        _dir_in(IN_KEY_INT);
-
-        //PORTC.2 = 1;   Подтяжка на кнопку "+"
-        //DDRC.2 = 0;
-        _pin_on(IN_KEY_PLUS);
-        _dir_in(IN_KEY_PLUS);
-
-        //PORTC.1 = 0;   Динамик
-        //DDRC.1 = 1;
-        _pin_off(OUT_BEEPER);
-        _dir_out(OUT_BEEPER);
-
-        //PORTD.0 = 0;   Красная подсветка
-        //DDRD.0 = 1;
-        _pin_off(OUT_LED_RED);
-        _dir_out(OUT_LED_RED);
-
-        //PORTD.5 = 0;   Синяя подсветка
-        //DDRD.5 = 1;
-        _pin_off(OUT_LED_BLUE);
-        _dir_out(OUT_LED_BLUE);
-
-        _interrupt_enable(INT_TIMER2_OVF);
-
-        /* Режим сна - Standby, внешние прерывания по низкому уровню. */
-        MCUCR = (1 << SM2) | (1 << SM1);
-        _interrupt_enable(INT_EXT0);
 }

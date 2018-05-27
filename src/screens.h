@@ -1,30 +1,11 @@
-/*****************************************************************************
- *
- *  micron 2 v 1.2.6
- *  Copyright (C) 2018  Nick Egorrov
- *
- *  This program is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
- *****************************************************************************/
-
 /**
  * \file
- * \brief
+ * \brief Объявления для графического интерфейса.
  * \details
  *
- * \date created on: 24.02.2018
- * \author: nick
+ * \date Создан 24.02.2018
+ * \author Nick Egorrov
+ * \copyright GNU Public License 3
  */
 
 #ifndef SRC_SCREENS_H_
@@ -35,41 +16,72 @@ extern "C" {
 #endif
 
 /**
+ * Константа для отображения основного окна.
+ */
+#define SCREEN_VIEW_MAIN        1U
+
+/**
+ * Константа для отображения меню.
+ */
+#define SCREEN_VIEW_MENU        2U
+
+/**
+ * Константа для отображения сообщения при включении.
+ */
+#define SCREEN_VIEW_INTRO       3U
+
+/**
+ * Константа для отображения сообщения при выключении.
+ */
+#define SCREEN_VIEW_BAY         4U
+
+/**
+ * Константа для отображения тревожного сообщения высокого уровня радиации.
+ */
+#define SCREEN_VIEW_ALERT_DOSE  5U
+
+/**
+ * Константа для отображения тревожного сообщения при разряде батарейки.
+ */
+#define SCREEN_VIEW_ALERT_POWER 6U
+
+/**
  * Обновление внутреннего состояния модуля.
- * \param event Набор флагов CLOCK_EVENT_xx см. "clock.h"
+ * \param event Набор флагов CLOCK_EVENT_xx см. clock.h
  */
 extern void ScreenClockEvent(unsigned char event);
 
 /**
- * Перерисовка главного экрана.
+ * Изменяет (если это возможно) отображаемый экран. Для отмены этого используйте
+ * ScreenHide(). Эти функции только меняют внутреннее состояние модуля, что бы
+ * изменения появились вызовите ScreenDraw().
+ * \param view Требуемый экран, может быть одним из #SCREEN_VIEW_ALERT_DOSE,
+ * #SCREEN_VIEW_ALERT_POWER, #SCREEN_VIEW_BAY, #SCREEN_VIEW_INTRO,
+ * #SCREEN_VIEW_MAIN, #SCREEN_VIEW_MENU.
  */
-extern void ScreenDrawWindow();
+extern void ScreenShow(unsigned char view);
 
 /**
- *
- * \return 0 in menu not active
+ * Отменяет (если это возможно) результат ScreenShow(). Эти функции только
+ * меняют внутреннее состояние модуля, что бы изменения появились вызовите
+ * ScreenDraw().
+ * \param view Отменяемый экран, может быть одним из #SCREEN_VIEW_ALERT_DOSE,
+ * #SCREEN_VIEW_ALERT_POWER, #SCREEN_VIEW_BAY, #SCREEN_VIEW_INTRO,
+ * #SCREEN_VIEW_MAIN, #SCREEN_VIEW_MENU.
  */
-extern char IsMenuActive();
+extern void ScreenHide(unsigned char view);
 
 /**
- *
- * \param act 0 for not active menu
+ * Перерисовка экрана.
  */
-extern void SetMenuActive(char act);
+extern void ScreenDraw();
 
-extern char IsNeedUpdate();
-
-extern void SetNeedUpdate(char act);
-
-unsigned char DrawMenu(unsigned char menu_select);
-
-void main_window_draw(unsigned char step);
-
-void menu_modification_check(char selected);
-
-extern void DrawIntro();
-
-extern void DrawBay();
+/**
+ * Обработка кнопок текущим экраном.
+ * \param key Код состояния кнопки, см. USER_KEY_xx в файле user.h
+ * \see ScreenShow()
+ */
+extern void ScreenHandleKey(unsigned char key);
 
 #ifdef _cplusplus
 extern "C" {

@@ -16,6 +16,21 @@
 #include "sensor.h"
 #include "user.h"
 
+#define BOUNCE_DOWN     (CLOCK_DIVIDER / 4)
+#define BOUNCE_UP       (CLOCK_DIVIDER / 2)
+#define DELAY_MENU_KEY  (1 * CLOCK_DIVIDER)
+#define DELAY_POWER_KEY (5 * CLOCK_DIVIDER)
+
+/*************************************************************
+ *      Private function prototype
+ *************************************************************/
+
+static void scanKeys();
+
+/*************************************************************
+ *      Variable in RAM
+ *************************************************************/
+
 static struct _aFlags {
         unsigned char red :1;
         unsigned char blue :1;
@@ -23,64 +38,65 @@ static struct _aFlags {
         unsigned char beep :1;
         unsigned char beep_active :1;
         unsigned char alarm :1;
-        unsigned char user_cancel_alarm :1;
         unsigned char black_light_enable :1;
 } flags;
 
+static unsigned char key;
+
+/*************************************************************
+ *      Variable in EEPROM
+ *************************************************************/
+
 static eeprom char eeSoundEnable = 1;
-static eeprom int eeAlarmLevel = 50;  // при каком уровне включать тревогу
-static int alarmLevel;
+
+/*************************************************************
+ *      Public function
+ *************************************************************/
 
 extern void UserInit()
 {
+        _pin_on(IN_KEY_INT);
+        _dir_in(IN_KEY_INT);
+        _pin_on(IN_KEY_PLUS);
+        _dir_in(IN_KEY_PLUS);
+        _pin_off(OUT_BEEPER);
+        _dir_out(OUT_BEEPER);
+        _pin_off(OUT_LED_RED);
+        _dir_out(OUT_LED_RED);
+        _pin_off(OUT_LED_BLUE);
+        _dir_out(OUT_LED_BLUE);
         TCCR0 = 0x05;
         TCNT0 = 0xFF;
         flags.sound_enable = _eemem_read8(&eeSoundEnable);
-        alarmLevel = _eemem_read16(&eeAlarmLevel);
         flags.beep = 0;
 }
 
-extern unsigned int UserGetAlarmLevel()
+/*
+ * Обновление внутреннего состояния модуля.
+ * \param event Набор флагов CLOCK_EVENT_xx см. "clock.h"
+ */
+extern void UserClockEvent(unsigned char event)
 {
-        return alarmLevel;
-}
-
-extern void UserSetAlarmLevel(unsigned int lvl)
-{
-        if (lvl > 9999) {
-                lvl = 0;
+        if (event == 0) {
+                return;
         }
-        alarmLevel = lvl;
-        _eemem_write16(&eeAlarmLevel, lvl);
+
+        scanKeys();
 }
 
-extern void UserIncAlarmLevel()
+extern void UserAlert(unsigned char alert)
 {
-        unsigned int lvl = alarmLevel;
 
-        if (lvl >= 1000) {
-                lvl += 1000;
-        } else if (lvl >= 100) {
-                lvl += 100;
-        } else {
-                lvl += 25;
-        }
-        UserSetAlarmLevel(lvl);
 }
 
-extern char UserIsAlarm()
+extern void UserAlertCansel(unsigned char alert)
 {
-        return flags.alarm;
+
 }
 
-extern void UserSetCanselAlarm(char on)
+extern unsigned char UserGetKey()
 {
-        flags.user_cancel_alarm = on;
-}
-
-extern char UserIsCanselAlarm()
-{
-        return flags.user_cancel_alarm;
+        return key;
 }
 
 extern char UserIsSoundEnable()
@@ -92,71 +108,6 @@ extern void UserSetSoundEnable(char on)
 {
         flags.sound_enable = on;
         _eemem_write8(&eeSoundEnable, on);
-}
-
-extern void UserAsyncBeep(char on)
-{
-        flags.beep = on;
-}
-
-extern char UserIsAsyncBeep()
-{
-        return flags.beep;
-}
-
-extern void UserSetBlackLight(char on)
-{
-        flags.black_light_enable = on;
-}
-
-extern char UserIsBlackLight()
-{
-        return flags.black_light_enable;
-}
-
-extern void UserSensorCheck(unsigned char second)
-{
-        static unsigned char error_count = 0;
-        unsigned int impulse_count = SensorGetRadiation(SENSOR_INDEX_MAX + 1);
-
-        _wdr();
-        if (second > 36) {
-                //проверка датчиков
-                if (impulse_count == 0) {
-                        error_count++;
-                } else {
-                        error_count = 0;
-                }
-                // Нет импульсов с датчика, подать сигнал.
-                if (error_count > 5) {
-                        UserAlarmSound();
-                        UserAlarmSound();
-                }
-                second = 0;
-        }
-
-}
-
-extern void UserAlarmCheck()
-{
-        unsigned int impulse_count = SensorGetRadiation(SENSOR_INDEX_MAX + 1);
-
-        if ((impulse_count > alarmLevel) && (!flags.user_cancel_alarm)
-                        && (alarmLevel > 0)) {
-                flags.beep = 1;
-                _interrupt_enable(INT_TIMER0_OVF);
-                UserLight(2);
-                delay_ms(100);
-                LcdPwrOn();
-                flags.alarm = 1;
-
-        }
-        if ((impulse_count < alarmLevel) || (alarmLevel == 0)) {
-                if (flags.alarm) {
-                        flags.alarm = 0;
-                        flags.user_cancel_alarm = 0;
-                }
-        }
 }
 
 /**
@@ -207,56 +158,96 @@ extern void UserLight(unsigned char command)
         }
 }
 
-//звук предупреждения о батарейке и датчике
-extern void UserAlarmSound()
-{
-        int i;
-
-        for (i = 100; i > 0; i--) {
-                UserLight(0);
-                _pin_on(OUT_BEEPER);
-                delay_us(50);
-                _pin_off(OUT_BEEPER);
-                delay_us(1200);  // тут можно менять частоту звука
-        }
-}
+/*************************************************************
+ *      Interrupt handler
+ *************************************************************/
 
 _isr_timer0_ovf(void)
 {
-        static unsigned char beep_count = 0;
         TCNT0 = 0xFF;
+
         if (!flags.beep) {
-                _interrupt_disable(INT_TIMER0_OVF);
-                //beep_pin = 0;
                 _pin_off(OUT_BEEPER);
-                UserLight(1);
+                _interrupt_disable(INT_TIMER0_OVF);
+                return;
+        }
+
+        if (!flags.beep_active) {
+                _pin_off(OUT_BEEPER);
+                flags.beep_active = 1;
         } else {
-                if (beep_count < 254) {
-                        beep_count++;
-                        if (!flags.beep_active) {
-                                //beep_pin = 0;
-                                _pin_off(OUT_BEEPER);
-                                UserLight(1);
-                                flags.beep_active = 1;
-                        } else {
-                                UserLight(0);
-                                //beep_pin = 1;
-                                _pin_on(OUT_BEEPER);
-                                flags.beep_active = 0;
-                        }
-                } else {
+                _pin_on(OUT_BEEPER);
+                flags.beep_active = 0;
+        }
+}
 
-                        if (flags.alarm && !flags.user_cancel_alarm) {
-                                beep_count = 0;
-                        } else {
-                                //beep_pin = 0;
-                                _pin_off(OUT_BEEPER);
-                                UserLight(1);
-                                beep_count = 0;
-                                _interrupt_disable(INT_TIMER0_OVF);
-                                flags.beep = 0;
-                        }
+/*************************************************************
+ *      Private function
+ *************************************************************/
 
+static void scanKeys()
+{
+        static char old = 0;
+        /* Счётчик для  защиты от дребезга контактов. */
+        static unsigned char bounce = 0;
+        /* Задержка перед сменой назначения клавиши. */
+        static unsigned char delay = 0;
+
+        if (delay != 0) {
+                delay--;
+        }
+
+        if (bounce != 0) {
+                bounce--;
+                return;
+        }
+
+        switch (old) {
+        case USER_KEY_OK_DOWN:
+                if (_is_pin_set(IN_KEY_INT)) {
+                        key = USER_KEY_OK_UP;
+                        old = 0;
+                        bounce = BOUNCE_UP;
+                } else if (delay == 0) {
+                        key = USER_KEY_MENU_DOWN;
+                        old = key;
+                        delay = DELAY_POWER_KEY;
+                }
+                break;
+        case USER_KEY_MENU_DOWN:
+                if (_is_pin_set(IN_KEY_INT)) {
+                        key = USER_KEY_MENU_UP;
+                        old = 0;
+                        bounce = BOUNCE_UP;
+                } else if (delay == 0) {
+                        key = USER_KEY_POWER_DOWN;
+                        old = key;
+                }
+                break;
+        case USER_KEY_POWER_DOWN:
+                if (_is_pin_set(IN_KEY_INT)) {
+                        key = USER_KEY_POWER_UP;
+                        old = 0;
+                        bounce = BOUNCE_UP;
+                }
+                break;
+        case USER_KEY_PLUS_DOWN:
+                if (_is_pin_set(IN_KEY_PLUS)) {
+                        key = USER_KEY_PLUS_UP;
+                        old = 0;
+                        bounce = BOUNCE_UP;
+                }
+                break;
+        default:
+                if (_is_pin_clean(IN_KEY_INT)) {
+                        key = USER_KEY_OK_DOWN;
+                        old = key;
+                        bounce = BOUNCE_DOWN;
+                        delay = DELAY_MENU_KEY;
+                } else if (_is_pin_clean(IN_KEY_PLUS)) {
+                        key = USER_KEY_PLUS_DOWN;
+                        bounce = BOUNCE_DOWN;
+                        old = key;
                 }
         }
 }
