@@ -1,6 +1,6 @@
 /**
  * \file
- * \brief Реализация управления питанием.
+ * \brief Реализация контроля питания.
  * \details
  *
  * \anchor adc_internal
@@ -47,14 +47,11 @@
  * \copyright GNU Public License 3
  */
 
+#include "app.h"
 #include "compiler.h"
 #include "config.h"
 #include "clock.h"
-#include "display/n3310lcd.h"
 #include "power.h"
-#include "screens.h"
-#include "sensor.h"
-#include "user.h"
 
 #define VOLTAGE_MEASURE_CYCLE   16U
 
@@ -108,87 +105,23 @@ static void RunMeasure();
  *      Variable in RAM
  *************************************************************/
 
-/* Текущий режим работы устройства. См. PowerSetMode(). */
-static unsigned char powerMode;
 /* Оставшийся заряд источника питания. */
 static unsigned char btrPercent = 0;
 /* Напряжение источника питания, в сотых долях вольта. */
 static unsigned int btrVoltage = 0;
-/* Время задержки перехода в режим энергосбережения. */
-static unsigned char saveDelay;
-/* Счётчик перехода в режим энергосбережения. */
-static unsigned int saveTimer;
-
-/*************************************************************
- *      Variable in EEPROM
- *************************************************************/
-
-/* Время задержки перехода в режим энергосбережения, значение, сохраняемое
- * в EEPROM.
- */
-eeprom static unsigned char eeSaveDelay = POWER_SAVE_DELAY_DEFAULT
-                / POWER_SAVE_DELAY_STEP;
 
 /*************************************************************
  *      Public function
  *************************************************************/
 
 /*
- * Инициализация модуля. Для включения устройства нужно вызвать
- * PowerSetMode().
+ * Инициализация модуля.
  */
 extern void PowerInit()
 {
         /* Режим сна - Power-save, внешние прерывания по низкому уровню. */
         MCUCR = (1 << SE) | (1 << SM1) | (1 << SM0);
-        saveDelay = _eemem_read8(&eeSaveDelay);
         RunMeasure();
-}
-
-/*
- * Переключение режима работы устройства.
- * \param mode Один из режимов #POWER_MODE_ON, #POWER_MODE_SAVE или
- * #POWER_MODE_OFF.
- */
-extern void PowerSetMode(unsigned char mode)
-{
-        powerMode = mode;
-
-        switch (mode) {
-        case POWER_MODE_ON:
-                SensorInit();
-                UserInit();
-                LcdInit();
-                break;
-        case POWER_MODE_SAVE:
-                //LcdPwrOff();
-                break;
-        case POWER_MODE_OFF:
-        default:
-                _interrupt_disable(INT_EXT1);
-                LcdPwrOff();
-                //UserAsyncBeep(0);
-                //SetMenuActive(0);
-                //UserLight(2);
-                GICR = 0x40;
-                MCUCR = 0xA0;
-                DDRB = 0x00;
-                DDRC = 0x00;
-                DDRD = 0x00;
-                PORTB = 0x00;
-                PORTC = 0x00;
-                PORTD = 0x04;
-                TCCR0 = 0x00;
-        }
-}
-
-/*
- * Получение режима работы устройства.
- * \return Один из режимов #POWER_MODE_ON, #POWER_MODE_SAVE или #POWER_MODE_OFF.
- */
-extern unsigned char PowerGetMode()
-{
-        return powerMode;
 }
 
 /*
@@ -197,65 +130,10 @@ extern unsigned char PowerGetMode()
  */
 extern void PowerClockEvent(unsigned char event)
 {
-        if (powerMode == POWER_MODE_OFF || (event & CLOCK_EVENT_SECOND) == 0) {
+        if (AppGetMode() == APP_MODE_OFF || (event & CLOCK_EVENT_SECOND) == 0) {
                 return;
         }
         RunMeasure();
-        if (saveTimer != 0) {
-                saveTimer--;
-                if (saveTimer == 0) {
-                        PowerSetMode(POWER_MODE_SAVE);
-                }
-        }
-}
-
-/*
- * Перезапуск счетчика задержки перехода в режим пониженного потребления
- * питания.
- */
-void PowerStartSaveTimer()
-{
-        saveTimer = saveDelay * POWER_SAVE_DELAY_STEP;
-}
-
-/*
- * Получение времени задержки перехода в режим пониженного потребления питания.
- * \return время задержки в секундах.
- */
-extern unsigned int PowerGetSaveTime()
-{
-        return (unsigned int) saveDelay * POWER_SAVE_DELAY_STEP;
-}
-
-/*
- * Установка времени задержки перехода в режим пониженного потребления питания.
- * \param tm время задержки в секундах. Если \arg tm больше POWER_SAVE_DELAY_MAX
- *      то записывается ноль.
- */
-extern void PowerSetSaveTime(unsigned int tm)
-{
-        unsigned char t = tm / POWER_SAVE_DELAY_STEP;
-        if (t > POWER_SAVE_DELAY_MAX / POWER_SAVE_DELAY_STEP) {
-                t = 0;
-        }
-        saveDelay = t;
-        _eemem_write8(&eeSaveDelay, saveDelay);
-}
-
-/*
- * Увеличение времени задержки перехода в режим пониженного потребления питания.
- * Для значения задержки до 60 секунд увеличение происходит на 10, далее на 60
- * секунд.Если задержка больше #POWER_SAVE_DELAY_MAX, то записывается ноль.
- */
-extern void PowerIncSaveTime()
-{
-        unsigned char st = saveDelay;
-        if (st >= 60 / POWER_SAVE_DELAY_STEP) {
-                st += 60 / POWER_SAVE_DELAY_STEP;
-        } else {
-                st += 10 / POWER_SAVE_DELAY_STEP;
-        }
-        PowerSetSaveTime(st);
 }
 
 /*
@@ -270,7 +148,7 @@ extern char PowerCheck()
         return 0;
 }
 
-/**
+/*
  * Возвращает напряжение источника питания.
  * \return Напряжение питания в сотых долях вольта.
  */
@@ -279,7 +157,7 @@ extern unsigned int PowerVoltage()
         return btrVoltage;
 }
 
-/**
+/*
  * Возвращает заряд источника питания.
  * \return Оставшийся заряд в процентах.
  */
@@ -316,9 +194,9 @@ _isr_adc(void)
                         / btrVoltage;
 #else
         btrVoltage = measureVoltage
-                        * ((unsigned int) (100 * ADC_INTERNAL_REFERENCE
+        * ((unsigned int) (100 * ADC_INTERNAL_REFERENCE
                                         * MEASURE_CIRCUIT_SCALE)
-                                        / VOLTAGE_MEASURE_CYCLE )/ ADC_MAX;
+                        / VOLTAGE_MEASURE_CYCLE )/ ADC_MAX;
 #endif
         if (btrVoltage > POWER_VOLTAGE_HIGH) {
                 btrVoltage = POWER_VOLTAGE_HIGH;

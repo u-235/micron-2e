@@ -8,6 +8,7 @@
  */
 
 #include <stdio.h>
+#include "app.h"
 #include "compiler.h"
 #include "config.h"
 #include "clock.h"
@@ -130,7 +131,7 @@ extern void ScreenDraw()
 {
         static unsigned char old = 0;
 
-        if (PowerGetMode() == POWER_MODE_OFF) {
+        if (AppGetMode() == APP_MODE_OFF) {
                 return;
         }
 
@@ -208,7 +209,7 @@ static void HandleKeyMenu(unsigned char key)
                 SensorIncAlarmLevel();
                 break;
         case 2:
-                PowerIncSaveTime();
+                AppIncSaveTime();
                 break;
         case 3:
                 UserSetSoundEnable(!UserIsSoundEnable());
@@ -264,10 +265,10 @@ static void DrawMenu()
                         LcdString(buf, 0, 2);
                 }
 
-                if (PowerGetSaveTime() == 0) {
+                if (AppGetSaveTime() == 0) {
                         format(buf, PSTR("Сон      откл."));
                 } else {
-                        format(buf, PSTR("Сон    %4uсек"), PowerGetSaveTime());
+                        format(buf, PSTR("Сон    %4uсек"), AppGetSaveTime());
                 }
                 if (menuSelected == 2) {
                         LcdStringInv(buf, 0, 3);
