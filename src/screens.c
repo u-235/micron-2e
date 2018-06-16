@@ -232,7 +232,11 @@ static void HandleKeyMenu(unsigned char key)
         case 9:
                 SensorIncPulseDuration();
                 break;
+        default:
+                return;
         }
+
+        invalidate = 1;
         return;
 }
 
