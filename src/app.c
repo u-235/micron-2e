@@ -43,7 +43,7 @@ static unsigned int saveTimer;
 /* Время задержки перехода в режим энергосбережения, значение, сохраняемое
  * в EEPROM.
  */
-eeprom static unsigned char eeSaveDelay = APP_SAVE_DELAY_DEFAULT
+static eeprom unsigned char eeSaveDelay = APP_SAVE_DELAY_DEFAULT
                 / APP_SAVE_DELAY_STEP;
 
 /*************************************************************
