@@ -14,6 +14,11 @@
 extern "C" {
 #endif
 
+/* special for eclipse */
+#ifndef __flash
+#define __flash
+#endif
+
         /*************************************************************
          *      Header for MCU and utils
          *************************************************************/
@@ -32,8 +37,11 @@ extern "C" {
 #ifndef _IO_BITS_DEFINITIONS_
 #define _IO_BITS_DEFINITIONS_
 #endif
+
 #include <io.h>
 #include <delay.h>
+
+#define F_CPU _MCU_CLOCK_FREQUENCY
 
 #elif defined __ICCAVR__
         /* IAR AVR */
@@ -41,12 +49,6 @@ extern "C" {
 #define ENABLE_BIT_DEFINITIONS
 #endif
 #include <ioavr.h>
-
-#ifndef F_CPU
-# warning "F_CPU not defined for calculate delays"
-# define F_CPU 8000000UL
-#endif
-
 #include <intrinsics.h>
 #define delay_ms(ms)    __delay_cycles(F_CPU/1000UL*ms)
 #define delay_us(us)    __delay_cycles(F_CPU/1000000UL*us)
@@ -93,20 +95,15 @@ extern "C" {
         /* GCC */
 #define flash __flash
 
-#define format sprintf_P
-
 #define eeprom EEMEM
 #define _eemem_read8(a) eeprom_read_byte((uint8_t*)a)
 #define _eemem_read16(a) eeprom_read_word((uint16_t*)a)
 #define _eemem_write8(a, v) eeprom_write_byte((uint8_t*)a, v)
 #define _eemem_write16(a, v) eeprom_write_word((uint16_t*)a, v)
-# define ESTR(s) (__extension__({static const char __c[] EEMEM = (s); &__c[0];}))
 
 #elif defined __CODEVISIONAVR__
-#define PSTR(s) ((flash char *)(s))
-#define ESTR(s) ((eeprom char *)(s))
-
-#define format sprintf
+        /* CodeVision */
+#define sprintf_P sprintf
 
 #define _eemem_read8(a) (*((eeprom char*)a))
 #define _eemem_read16(a) (*((eeprom int*)a))
@@ -118,11 +115,6 @@ extern "C" {
 #include <pgmspace.h>
 #define flash __flash
 #define eeprom __eeprom
-
-#define PSTR(s) ((flash char *)(s))
-#define ESTR(s) ((eeprom char *)(s))
-
-#define format sprintf_P
 
 #define _eemem_read8(a) (*((eeprom char*)a))
 #define _eemem_read16(a) (*((eeprom int*)a))

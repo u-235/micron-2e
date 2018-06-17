@@ -1,6 +1,6 @@
 /**
  * \file
- * \brief Реализация графического интерфейса.
+ * \brief Р РµР°Р»РёР·Р°С†РёСЏ РіСЂР°С„РёС‡РµСЃРєРѕРіРѕ РёРЅС‚РµСЂС„РµР№СЃР°.
  * \details
  *
  * \author Nick Egorrov
@@ -8,14 +8,16 @@
  */
 
 #include <stdio.h>
-#include "app.h"
 #include "compiler.h"
 #include "config.h"
+
+#include "app.h"
 #include "clock.h"
 #include "display/n3310lcd.h"
 #include "screens.h"
 #include "sensor.h"
 #include "power.h"
+#include "msg.h"
 #include "user.h"
 
 /*************************************************************
@@ -23,38 +25,38 @@
  *************************************************************/
 
 /**
- * Обработка кнопок в режиме показа меню.
- * \param key Код состояния кнопки, см. USER_KEY_xx в файле user.h
+ * РћР±СЂР°Р±РѕС‚РєР° РєРЅРѕРїРѕРє РІ СЂРµР¶РёРјРµ РїРѕРєР°Р·Р° РјРµРЅСЋ.
+ * \param key РљРѕРґ СЃРѕСЃС‚РѕСЏРЅРёСЏ РєРЅРѕРїРєРё, СЃРј. USER_KEY_xx РІ С„Р°Р№Р»Рµ user.h
  */
 static void HandleKeyMenu(unsigned char key);
 
 /**
- * Отображение основного окна.
+ * РћС‚РѕР±СЂР°Р¶РµРЅРёРµ РѕСЃРЅРѕРІРЅРѕРіРѕ РѕРєРЅР°.
  */
 static void DrawWindow();
 
 /**
- * Отображение меню.
+ * РћС‚РѕР±СЂР°Р¶РµРЅРёРµ РјРµРЅСЋ.
  */
 static void DrawMenu();
 
 /**
- * Отображение сообщения при включении.
+ * РћС‚РѕР±СЂР°Р¶РµРЅРёРµ СЃРѕРѕР±С‰РµРЅРёСЏ РїСЂРё РІРєР»СЋС‡РµРЅРёРё.
  */
 static void DrawIntro();
 
 /**
- * Отображение сообщения при выключении.
+ * РћС‚РѕР±СЂР°Р¶РµРЅРёРµ СЃРѕРѕР±С‰РµРЅРёСЏ РїСЂРё РІС‹РєР»СЋС‡РµРЅРёРё.
  */
 static void DrawBay();
 
 /**
- * Отображение тревожного сообщения высокого уровня радиации.
+ * РћС‚РѕР±СЂР°Р¶РµРЅРёРµ С‚СЂРµРІРѕР¶РЅРѕРіРѕ СЃРѕРѕР±С‰РµРЅРёСЏ РІС‹СЃРѕРєРѕРіРѕ СѓСЂРѕРІРЅСЏ СЂР°РґРёР°С†РёРё.
  */
 static void DrawAlertDose();
 
 /**
- * Отображение тревожного сообщения при разряде батарейки.
+ * РћС‚РѕР±СЂР°Р¶РµРЅРёРµ С‚СЂРµРІРѕР¶РЅРѕРіРѕ СЃРѕРѕР±С‰РµРЅРёСЏ РїСЂРё СЂР°Р·СЂСЏРґРµ Р±Р°С‚Р°СЂРµР№РєРё.
  */
 static void DrawAlertPower();
 
@@ -62,11 +64,11 @@ static void DrawAlertPower();
  *      Variable in RAM
  *************************************************************/
 
-/* Текстовый буфер для вывода на LCD */
+/* РўРµРєСЃС‚РѕРІС‹Р№ Р±СѓС„РµСЂ РґР»СЏ РІС‹РІРѕРґР° РЅР° LCD */
 static char buf[15];
-/* Выбранный пункт меню */
+/* Р’С‹Р±СЂР°РЅРЅС‹Р№ РїСѓРЅРєС‚ РјРµРЅСЋ */
 static unsigned char menuSelected;
-/* Стадия показа главного экрана. */
+/* РЎС‚Р°РґРёСЏ РїРѕРєР°Р·Р° РіР»Р°РІРЅРѕРіРѕ СЌРєСЂР°РЅР°. */
 static unsigned char windowStep;
 static unsigned char show;
 static char invalidate;
@@ -76,8 +78,8 @@ static char invalidate;
  *************************************************************/
 
 /*
- * Обновление внутреннего состояния модуля.
- * \param event Набор флагов CLOCK_EVENT_xx см. clock.h
+ * РћР±РЅРѕРІР»РµРЅРёРµ РІРЅСѓС‚СЂРµРЅРЅРµРіРѕ СЃРѕСЃС‚РѕСЏРЅРёСЏ РјРѕРґСѓР»СЏ.
+ * \param event РќР°Р±РѕСЂ С„Р»Р°РіРѕРІ CLOCK_EVENT_xx СЃРј. clock.h
  */
 extern void ScreenClockEvent(unsigned char event)
 {
@@ -91,10 +93,10 @@ extern void ScreenClockEvent(unsigned char event)
 }
 
 /*
- * Изменяет (если это возможно) отображаемый экран. Для отмены этого используйте
- * ScreenHide(). Эти функции только меняют внутреннее состояние модуля, что бы
- * изменения появились вызовите ScreenDraw().
- * \param view Требуемый экран, может быть одним из #SCREEN_VIEW_ALERT_DOSE,
+ * РР·РјРµРЅСЏРµС‚ (РµСЃР»Рё СЌС‚Рѕ РІРѕР·РјРѕР¶РЅРѕ) РѕС‚РѕР±СЂР°Р¶Р°РµРјС‹Р№ СЌРєСЂР°РЅ. Р”Р»СЏ РѕС‚РјРµРЅС‹ СЌС‚РѕРіРѕ РёСЃРїРѕР»СЊР·СѓР№С‚Рµ
+ * ScreenHide(). Р­С‚Рё С„СѓРЅРєС†РёРё С‚РѕР»СЊРєРѕ РјРµРЅСЏСЋС‚ РІРЅСѓС‚СЂРµРЅРЅРµРµ СЃРѕСЃС‚РѕСЏРЅРёРµ РјРѕРґСѓР»СЏ, С‡С‚Рѕ Р±С‹
+ * РёР·РјРµРЅРµРЅРёСЏ РїРѕСЏРІРёР»РёСЃСЊ РІС‹Р·РѕРІРёС‚Рµ ScreenDraw().
+ * \param view РўСЂРµР±СѓРµРјС‹Р№ СЌРєСЂР°РЅ, РјРѕР¶РµС‚ Р±С‹С‚СЊ РѕРґРЅРёРј РёР· #SCREEN_VIEW_ALERT_DOSE,
  * #SCREEN_VIEW_ALERT_POWER, #SCREEN_VIEW_BAY, #SCREEN_VIEW_INTRO,
  * #SCREEN_VIEW_MAIN, #SCREEN_VIEW_MENU.
  */
@@ -109,10 +111,10 @@ extern void ScreenShow(unsigned char view)
 }
 
 /*
- * Отменяет (если это возможно) результат ScreenShow(). Эти функции только
- * меняют внутреннее состояние модуля, что бы изменения появились вызовите
+ * РћС‚РјРµРЅСЏРµС‚ (РµСЃР»Рё СЌС‚Рѕ РІРѕР·РјРѕР¶РЅРѕ) СЂРµР·СѓР»СЊС‚Р°С‚ ScreenShow(). Р­С‚Рё С„СѓРЅРєС†РёРё С‚РѕР»СЊРєРѕ
+ * РјРµРЅСЏСЋС‚ РІРЅСѓС‚СЂРµРЅРЅРµРµ СЃРѕСЃС‚РѕСЏРЅРёРµ РјРѕРґСѓР»СЏ, С‡С‚Рѕ Р±С‹ РёР·РјРµРЅРµРЅРёСЏ РїРѕСЏРІРёР»РёСЃСЊ РІС‹Р·РѕРІРёС‚Рµ
  * ScreenDraw().
- * \param view Отменяемый экран, может быть одним из #SCREEN_VIEW_ALERT_DOSE,
+ * \param view РћС‚РјРµРЅСЏРµРјС‹Р№ СЌРєСЂР°РЅ, РјРѕР¶РµС‚ Р±С‹С‚СЊ РѕРґРЅРёРј РёР· #SCREEN_VIEW_ALERT_DOSE,
  * #SCREEN_VIEW_ALERT_POWER, #SCREEN_VIEW_BAY, #SCREEN_VIEW_INTRO,
  * #SCREEN_VIEW_MAIN, #SCREEN_VIEW_MENU.
  */
@@ -125,7 +127,7 @@ extern void ScreenHide(unsigned char view)
 }
 
 /*
- * Перерисовка экрана.
+ * РџРµСЂРµСЂРёСЃРѕРІРєР° СЌРєСЂР°РЅР°.
  */
 extern void ScreenDraw()
 {
@@ -162,8 +164,8 @@ extern void ScreenDraw()
 }
 
 /*
- * Обработка кнопок текущим экраном.
- * \param key Код состояния кнопки, см. USER_KEY_xx в файле user.h
+ * РћР±СЂР°Р±РѕС‚РєР° РєРЅРѕРїРѕРє С‚РµРєСѓС‰РёРј СЌРєСЂР°РЅРѕРј.
+ * \param key РљРѕРґ СЃРѕСЃС‚РѕСЏРЅРёСЏ РєРЅРѕРїРєРё, СЃРј. USER_KEY_xx РІ С„Р°Р№Р»Рµ user.h
  * \see ScreenShow()
  */
 extern void ScreenHandleKey(unsigned char key)
@@ -248,14 +250,14 @@ static void DrawMenu()
         }
         invalidate = 0;
 
-        format(buf, PSTR("     МЕНЮ     "));
+        sprintf_P(buf, _LOCAL_NAME(msgMenuTitle));
         LcdStringInv(buf, 0, 0);
 
         if (menuSelected < 5) {
                 if (SensorGetAlarmLevel() == 0) {
-                        format(buf, PSTR("Тревога  откл."));
+                        sprintf_P(buf, _LOCAL_NAME(msgMenuAlarmOff));
                 } else {
-                        format(buf, PSTR("Тревога%4uмкР"),
+                        sprintf_P(buf, _LOCAL_NAME(msgMenuAlarm),
                                         SensorGetAlarmLevel());
                 }
 
@@ -266,9 +268,10 @@ static void DrawMenu()
                 }
 
                 if (AppGetSaveTime() == 0) {
-                        format(buf, PSTR("Сон      откл."));
+                        sprintf_P(buf, _LOCAL_NAME(msgMenuSleepOff));
                 } else {
-                        format(buf, PSTR("Сон    %4uсек"), AppGetSaveTime());
+                        sprintf_P(buf, _LOCAL_NAME(msgMenuSleep),
+                                        AppGetSaveTime());
                 }
                 if (menuSelected == 2) {
                         LcdStringInv(buf, 0, 3);
@@ -277,9 +280,9 @@ static void DrawMenu()
                 }
 
                 if (UserIsSoundEnable() == 0) {
-                        format(buf, PSTR("Звук     откл."));
+                        sprintf_P(buf, _LOCAL_NAME(msgMenuSoundOff));
                 } else {
-                        format(buf, PSTR("Звук      вкл."));
+                        sprintf_P(buf, _LOCAL_NAME(msgMenuSoundOn));
                 }
 
                 if (menuSelected == 3) {
@@ -288,7 +291,7 @@ static void DrawMenu()
                         LcdString(buf, 0, 4);
                 }
 
-                format(buf, PSTR("Сброс  дозы   "));
+                sprintf_P(buf, _LOCAL_NAME(msgMenuClearDose));
                 if (menuSelected == 4) {
                         LcdStringInv(buf, 0, 5);
                 } else {
@@ -296,37 +299,41 @@ static void DrawMenu()
                 }
 
         } else if ((menuSelected > 4) && (menuSelected < 7)) {
-                /* 2 страница меню. */
-                format(buf, PSTR("Часы     %2u:  "), ClockGetHours());
+                /* 2 СЃС‚СЂР°РЅРёС†Р° РјРµРЅСЋ. */
+                sprintf_P(buf, _LOCAL_NAME(msgMenuSetHours), ClockGetHours());
                 if (menuSelected == 5) {
                         LcdStringInv(buf, 0, 2);
                 } else {
                         LcdString(buf, 0, 2);
                 }
 
-                format(buf, PSTR("Минуты     :%2u"), ClockGetMimutes());
+                sprintf_P(buf, _LOCAL_NAME(msgMenuSetMinutes),
+                                ClockGetMimutes());
                 if (menuSelected == 6) {
                         LcdStringInv(buf, 0, 3);
                 } else {
                         LcdString(buf, 0, 3);
                 }
         } else {
-                /* 3 страница меню. */
-                format(buf, PSTR("Накачка %3uимп"), SensorGetTicksPeriodik());
+                /* 3 СЃС‚СЂР°РЅРёС†Р° РјРµРЅСЋ. */
+                sprintf_P(buf, _LOCAL_NAME(msgMenuSetTiksPeriodic),
+                                SensorGetTicksPeriodik());
                 if (menuSelected == 7) {
                         LcdStringInv(buf, 0, 2);
                 } else {
                         LcdString(buf, 0, 2);
                 }
 
-                format(buf, PSTR("При имп.%3uимп"), SensorGetTicksHit());
+                sprintf_P(buf, _LOCAL_NAME(msgMenuSetTiksHit),
+                                SensorGetTicksHit());
                 if (menuSelected == 8) {
                         LcdStringInv(buf, 0, 3);
                 } else {
                         LcdString(buf, 0, 3);
                 }
 
-                format(buf, PSTR("Импульс %3uмкс"), SensorGetPulseDuration());
+                sprintf_P(buf, _LOCAL_NAME(msgMenuSetPulseDuration),
+                                SensorGetPulseDuration());
                 if (menuSelected == 9) {
                         LcdStringInv(buf, 0, 4);
                 } else {
@@ -349,11 +356,12 @@ static void DrawWindow()
         }
         invalidate = 0;
 
-        format(buf, PSTR("%5u"), SensorGetRadiation(SENSOR_INDEX_MAX + 1));
+        sprintf_P(buf, _LOCAL_NAME(msgWindowRadiation),
+                        SensorGetRadiation(SENSOR_INDEX_MAX + 1));
         LcdStringBold(buf, 0, 1);
-        format(buf, PSTR("мкР"));
+        sprintf_P(buf, _LOCAL_NAME(msgWindowMCR));
         LcdString(buf, 11, 1);
-        format(buf, PSTR(" ч "));
+        sprintf_P(buf, _LOCAL_NAME(msgWindowHour));
         LcdString(buf, 11, 2);
         LcdLine(66, 16, 83, 16, 1);
 
@@ -367,24 +375,26 @@ static void DrawWindow()
         }
         LcdLine(0, 38, 36, 38, 1);
 
-        format(buf, PSTR("%02u:%02u:%02u"), ClockGetHours(), ClockGetMimutes(),
-                        ClockGetSeconds());
+        sprintf_P(buf, _LOCAL_NAME(msgWindowTime), ClockGetHours(),
+                        ClockGetMimutes(), ClockGetSeconds());
         LcdString(buf, 0, 0);
 
         if (windowStep > 5) {
-                format(buf, PSTR("^ %03u$"), PowerCharge());
+                sprintf_P(buf, _LOCAL_NAME(msgWindowCharge), PowerCharge());
         } else {
-                format(buf, PSTR("^%01u.%02uv"), PowerVoltage() / 10,
-                                PowerVoltage() % 10);
+                sprintf_P(buf, _LOCAL_NAME(msgWindowVoltage),
+                                PowerVoltage() / 10, PowerVoltage() % 10);
         }
         LcdString(buf, 8, 0);
 
         if (windowStep <= 3) {
-                format(buf, PSTR("За час%5luмкР"), SensorGetDoseHour());
+                sprintf_P(buf, _LOCAL_NAME(msgWindowDoseHour),
+                                SensorGetDoseHour());
         } else if (windowStep > 3 && windowStep <= 6) {
-                format(buf, PSTR("Сут.%7luмкР"), SensorGetDoseDay());
+                sprintf_P(buf, _LOCAL_NAME(msgWindowDoseDay),
+                                SensorGetDoseDay());
         } else {
-                format(buf, PSTR("%3uД%7luмкР"), ClockGetDays(),
+                sprintf_P(buf, _LOCAL_NAME(msgWindowDoseAll), ClockGetDays(),
                                 SensorGetDoseAll());
         }
         LcdString(buf, 0, 5);
@@ -400,9 +410,9 @@ static void DrawIntro()
         invalidate = 0;
 
         LcdClear();
-        format(buf, PSTR("   Микрон-2е  "));
+        sprintf_P(buf, _LOCAL_NAME(msgProloqueTitle));
         LcdString(buf, 0, 1);
-        format(buf, PSTR("Загрузка"));
+        sprintf_P(buf, _LOCAL_NAME(msgProloqueLoad));
         LcdString(buf, 0, 4);
         LcdUpdate();
 }
@@ -415,7 +425,7 @@ static void DrawBay()
         invalidate = 0;
 
         LcdClear();
-        format(buf, PSTR("  Выключение  "));
+        sprintf_P(buf, _LOCAL_NAME(msgEpiloque));
         LcdString(buf, 0, 2);
         LcdUpdate();
 }
@@ -427,9 +437,9 @@ static void DrawAlertDose()
         }
         invalidate = 0;
 
-        format(buf, PSTR("   ОПАСНОЕ    "));
+        sprintf_P(buf, _LOCAL_NAME(msgAlertDanger));
         LcdStringInv(buf, 0, 2);
-        format(buf, PSTR("  ИЗЛУЧЕНИЕ!  "));
+        sprintf_P(buf, _LOCAL_NAME(msgAlertRadiation));
         LcdStringInv(buf, 0, 3);
         LcdUpdate();
 }
@@ -441,7 +451,7 @@ static void DrawAlertPower()
         }
         invalidate = 0;
 
-        format(buf, PSTR(" НИЗКИЙ ЗАРЯД!"));
+        sprintf_P(buf, _LOCAL_NAME(msgAlertPower));
         LcdString(buf, 0, 4);
         LcdUpdate();
 }

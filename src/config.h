@@ -271,6 +271,13 @@
  */
 #define SENSOR_SENSITIVITY 100
 
+#define CFG_LOCALE EN
+
+#ifndef F_CPU
+# warning "F_CPU not defined for calculate delays"
+# define F_CPU 8000000UL
+#endif
+
 /** @} */
 /** @} */
 
