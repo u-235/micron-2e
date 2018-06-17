@@ -14,6 +14,7 @@
 extern "C" {
 #endif
 
+/* Макросы для добавления к имени суффикса из CFG_LOCALE */
 #define _LOCAL_NAME(msg) __LOCAL_NAME(msg, CFG_LOCALE)
 #define __LOCAL_NAME(msg, sf) ___LOCAL_NAME(msg, sf)
 #define ___LOCAL_NAME(msg, sf) msg ## _ ## sf

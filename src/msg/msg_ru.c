@@ -11,6 +11,7 @@
 #include "../compiler.h"
 #include "../config.h"
 
+/* Что бы имена строк в этом файле всегда заканчивались на RU */
 #undef CFG_LOCALE
 #define CFG_LOCALE RU
 

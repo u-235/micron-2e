@@ -271,7 +271,10 @@
  */
 #define SENSOR_SENSITIVITY 100
 
-#define CFG_LOCALE EN
+/**
+ * Язык интерфейса. Может быть RU или EN
+ */
+#define CFG_LOCALE RU
 
 #ifndef F_CPU
 # warning "F_CPU not defined for calculate delays"
