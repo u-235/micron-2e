@@ -173,7 +173,7 @@ extern "C" {
 #define _is_pin_set(x) __is_pin_set(x)
 
 #define _interrupt_enable(i) _set_bit(i)
-#define _interrupt_disable(i) _set_bit(i)
+#define _interrupt_disable(i) _clear_bit(i)
 
 #define INT_EXT0        GICR, INT0
 #define INT_EXT1        GICR, INT1
