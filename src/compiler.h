@@ -14,11 +14,6 @@
 extern "C" {
 #endif
 
-/* special for eclipse */
-#ifndef __flash
-#define __flash
-#endif
-
         /*************************************************************
          *      Header for MCU and utils
          *************************************************************/
@@ -130,40 +125,31 @@ extern "C" {
 #ifdef __GNUC__
         /* GCC */
 #include <avr/interrupt.h>
-#define _isr_adc(nu)        ISR(ADC_vect)
-#define _isr_ext0(nu)       ISR(INT0_vect)
-#define _isr_ext1(nu)       ISR(INT1_vect)
-#define _isr_timer0_ovf(nu) ISR(TIMER0_OVF_vect)
-#define _isr_timer2_ovf(nu) ISR(TIMER2_OVF_vect)
+#define MAKE_ISR(v, n) ISR(v)
 
 #elif defined __CODEVISIONAVR__
         /* CodeVision */
-#define _isr_adc(nu)        interrupt [ADC_INT]  void voidadc_isr(void)
-#define _isr_ext0(nu)       interrupt [EXT_INT0] void ext_int0_isr(void)
-#define _isr_ext1(nu)       interrupt [EXT_INT1] void ext_int1_isr(void)
-#define _isr_timer0_ovf(nu) interrupt [TIM0_OVF] void timer0_ovf_isr(void)
-#define _isr_timer2_ovf(nu) interrupt [TIM2_OVF] void timer2_comp_ovf(void)
+#define MAKE_ISR(v, n) \
+        interrupt [v]  void __vector_ ## n(void)
+
+#define ADC_vect ADC_INT
+#define INT1_vect EXT_INT1
+#define TIMER0_OVF_vect TIM0_OVF
+#define TIMER2_OVF_vect TIM2_OVF
 
 #elif defined __ICCAVR__
         /* IAR AVR */
-
-#define _isr_adc(nu)        __interrupt void voidadc_isr(void)
-#pragma vector=ADC_vect
-        _isr_adc(void);
-#define _isr_ext0(nu)       __interrupt void ext_int0_isr(void)
-#pragma vector=INT0_vect
-        _isr_ext0(void);
-#define _isr_ext1(nu)       __interrupt void ext_int1_isr(void)
-#pragma vector=INT1_vect
-        _isr_ext1(void);
-#define _isr_timer0_ovf(nu) __interrupt void timer0_ovf_isr(void)
-#pragma vector=TIMER0_OVF_vect
-        _isr_timer0_ovf(void);
-#define _isr_timer2_ovf(nu) __interrupt void timer2_comp_ovf(void)
-#pragma vector=TIMER2_OVF_vect
-        _isr_timer2_ovf(void);
+#define MAKE_ISR(v, n) _MAKE_ISR(vector = v, n)
+#define _MAKE_ISR(v, n) \
+        _Pragma(#v)\
+        __interrupt void __vector_ ## n(void)
 
 #endif
+
+#define _isr_adc(nu)        MAKE_ISR(ADC_vect, adc)
+#define _isr_ext1(nu)       MAKE_ISR(INT1_vect, int0)
+#define _isr_timer0_ovf(nu) MAKE_ISR(TIMER0_OVF_vect, tm0ovf)
+#define _isr_timer2_ovf(nu) MAKE_ISR(TIMER2_OVF_vect, tm2ovf)
 
         /* some useful defines */
 #define _set_mask(dst, mask) dst|=(mask)
