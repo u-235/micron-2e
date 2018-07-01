@@ -22,7 +22,11 @@ extern "C" {
  * Инициализация датчика. Параметры настройки извлекаются из EEPROM и
  * запускается начальный цикл накачки.
  */
-extern void SensorInit();
+extern void SensorOn();
+
+extern void SensorOff();
+
+#define SensorSleep()
 
 /**
  * Обновление данных датчика в зависимости от времени.

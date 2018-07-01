@@ -32,13 +32,8 @@ static void scanKeys();
  *************************************************************/
 
 static struct _aFlags {
-        unsigned char red :1;
-        unsigned char blue :1;
-        unsigned char sound_enable :1;
-        unsigned char beep :1;
-        unsigned char beep_active :1;
-        unsigned char alarm :1;
-        unsigned char black_light_enable :1;
+        unsigned char red :1, blue :1, sound_enable :1, beep :1, beep_active :1,
+                        alarm :1, black_light_enable :1, init :1, sleep :1;
 } flags;
 
 static unsigned char key;
@@ -53,7 +48,7 @@ static eeprom char eeSoundEnable = 1;
  *      Public function
  *************************************************************/
 
-extern void UserInit()
+extern void UserOn()
 {
         _pin_on(IN_KEY_INT);
         _dir_in(IN_KEY_INT);
@@ -69,6 +64,13 @@ extern void UserInit()
         TCNT0 = 0xFF;
         flags.sound_enable = _eemem_read8(&eeSoundEnable);
         flags.beep = 0;
+        flags.init = 1;
+        flags.sleep = 0;
+}
+
+extern void UserSleep()
+{
+        flags.sleep = 1;
 }
 
 /*
@@ -119,7 +121,7 @@ extern void UserSetSoundEnable(char on)
  */
 extern void UserLight(unsigned char command)
 {
-        if (LcdIsPwrDown()) {
+        if (flags.sleep == 1) {
                 command = 0;
         }
 

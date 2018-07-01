@@ -142,25 +142,19 @@ extern void LcdContrast(unsigned char contrast);
 extern void LcdMode(unsigned char mode);
 
 /**
- * \brief Initials part MCU and display.
+ * \brief Power on and initials part MCU and display.
  */
-extern void LcdInit();
+extern void LcdOn();
 
 /**
- * Display state.
- * \return 0 - chip is active, non zero - chip is in PD-mode
+ * \brief turn to sleep mode
  */
-extern char LcdIsPwrDown();
+extern void LcdSleep();
 
 /**
- * Выключение дисплея.
+ * Power off.
  */
-extern void LcdPwrOff();
-
-/**
- * Включение дисплея.
- */
-extern void LcdPwrOn();
+extern void LcdOff();
 
 /**
  * \brief Flush internal buffer into display.

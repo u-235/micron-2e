@@ -71,11 +71,27 @@ static unsigned char menuSelected;
 /* Стадия показа главного экрана. */
 static unsigned char windowStep;
 static unsigned char show;
-static char invalidate;
+
+static struct _aFlags {
+        unsigned char invalidate :1, enable :1;
+} flags = {
+        0, 0
+};
 
 /*************************************************************
  *      Public function
  *************************************************************/
+
+extern void ScreenOn()
+{
+        flags.enable = 1;
+        flags.invalidate = 1;
+}
+
+extern void ScreenSleep()
+{
+        flags.enable = 0;
+}
 
 /*
  * Обновление внутреннего состояния модуля.
@@ -133,12 +149,12 @@ extern void ScreenDraw()
 {
         static unsigned char old = 0;
 
-        if (AppGetMode() == APP_MODE_OFF) {
+        if (flags.enable != 1) {
                 return;
         }
 
         if (old != show) {
-                invalidate = 1;
+                flags.invalidate = 1;
         }
 
         switch (show) {
@@ -239,16 +255,16 @@ static void HandleKeyMenu(unsigned char key)
                 return;
         }
 
-        invalidate = 1;
+        flags.invalidate = 1;
         return;
 }
 
 static void DrawMenu()
 {
-        if (invalidate == 0) {
+        if (flags.invalidate == 0) {
                 return;
         }
-        invalidate = 0;
+        flags.invalidate = 0;
 
         sprintf_P(buf, _LOCAL_NAME(msgMenuTitle));
         LcdStringInv(buf, 0, 0);
@@ -349,12 +365,12 @@ static void DrawWindow()
         unsigned char i, j, old = 0;
 
         if (old != windowStep) {
-                invalidate = 1;
+                flags.invalidate = 1;
         }
-        if (invalidate == 0) {
+        if (flags.invalidate == 0) {
                 return;
         }
-        invalidate = 0;
+        flags.invalidate = 0;
 
         sprintf_P(buf, _LOCAL_NAME(msgWindowRadiation),
                         SensorGetRadiation(SENSOR_INDEX_MAX + 1));
@@ -404,10 +420,10 @@ static void DrawWindow()
 
 static void DrawIntro()
 {
-        if (invalidate == 0) {
+        if (flags.invalidate == 0) {
                 return;
         }
-        invalidate = 0;
+        flags.invalidate = 0;
 
         LcdClear();
         sprintf_P(buf, _LOCAL_NAME(msgProloqueTitle));
@@ -419,10 +435,10 @@ static void DrawIntro()
 
 static void DrawBay()
 {
-        if (invalidate == 0) {
+        if (flags.invalidate == 0) {
                 return;
         }
-        invalidate = 0;
+        flags.invalidate = 0;
 
         LcdClear();
         sprintf_P(buf, _LOCAL_NAME(msgEpiloque));
@@ -432,10 +448,10 @@ static void DrawBay()
 
 static void DrawAlertDose()
 {
-        if (invalidate == 0) {
+        if (flags.invalidate == 0) {
                 return;
         }
-        invalidate = 0;
+        flags.invalidate = 0;
 
         sprintf_P(buf, _LOCAL_NAME(msgAlertDanger));
         LcdStringInv(buf, 0, 2);
@@ -446,10 +462,10 @@ static void DrawAlertDose()
 
 static void DrawAlertPower()
 {
-        if (invalidate == 0) {
+        if (flags.invalidate == 0) {
                 return;
         }
-        invalidate = 0;
+        flags.invalidate = 0;
 
         sprintf_P(buf, _LOCAL_NAME(msgAlertPower));
         LcdString(buf, 0, 4);

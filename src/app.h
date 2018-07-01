@@ -56,12 +56,6 @@ extern "C" {
 extern void AppSetMode(unsigned char mode);
 
 /**
- * Получение режима работы устройства.
- * \return Один из режимов #APP_MODE_ON, #APP_MODE_SAVE или #APP_MODE_OFF.
- */
-extern unsigned char AppGetMode();
-
-/**
  * Получение времени задержки перехода в режим пониженного потребления питания.
  * \return время задержки в секундах.
  */

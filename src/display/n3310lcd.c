@@ -114,7 +114,7 @@ extern void LcdMode(unsigned char mode)
  *      Level 1 : power management
  *************************************************************/
 
-extern void LcdInit()
+extern void LcdOn()
 {
         HardInit();
         HardOn();
@@ -122,25 +122,18 @@ extern void LcdInit()
         fPowerDown = 0;
 }
 
-extern char LcdIsPwrDown()
+extern void LcdSleep()
 {
-        return fPowerDown;
+        HardOn();
+        ChipOff();
+        fPowerDown = 0;
 }
 
-extern void LcdPwrOff()
+extern void LcdOff()
 {
-        LcdClear();
-        LcdUpdate();
         ChipOff();
         HardOff();
         fPowerDown = 1;
-}
-
-extern void LcdPwrOn()
-{
-        HardOn();
-        ChipInit();
-        fPowerDown = 0;
 }
 
 /*************************************************************

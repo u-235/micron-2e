@@ -55,8 +55,6 @@ void main(void)
         WDTCR = 0x1F;
         WDTCR = 0x0F;
         _sei();
-        PowerInit();
-        ClockInit();
         AppInit();
         AppSetMode(APP_MODE_ON);
         ScreenShow(SCREEN_VIEW_INTRO);
@@ -151,20 +149,29 @@ extern void AppSetMode(unsigned char mode)
 
         switch (mode) {
         case APP_MODE_ON:
-                SensorInit();
-                UserInit();
-                LcdInit();
+                PowerOn();
+                ClockOn();
+                SensorOn();
+                ScreenOn();
+                UserOn();
+                LcdOn();
                 break;
         case APP_MODE_SAVE:
-                //LcdPwrOff();
+                PowerSleep();
+                ClockSleep();
+                SensorSleep();
+                ScreenSleep();
+                UserSleep();
+                LcdSleep();
                 break;
         case APP_MODE_OFF:
         default:
-                _interrupt_disable(INT_EXT1);
-                LcdPwrOff();
-                //UserAsyncBeep(0);
-                //SetMenuActive(0);
-                //UserLight(2);
+                PowerOff();
+                ClockOff();
+                SensorOff();
+                ScreenOff();
+                UserOff();
+                LcdOff();
                 GICR = 0x40;
                 MCUCR = 0xA0;
                 DDRB = 0x00;
@@ -175,15 +182,6 @@ extern void AppSetMode(unsigned char mode)
                 PORTD = 0x04;
                 TCCR0 = 0x00;
         }
-}
-
-/**
- * Получение режима работы устройства.
- * \return Один из режимов #APP_MODE_ON, #APP_MODE_SAVE или #APP_MODE_OFF.
- */
-extern unsigned char AppGetMode()
-{
-        return appMode;
 }
 
 /*
@@ -244,7 +242,7 @@ static void AppInit()
  */
 static void AppClockEvent(unsigned char event)
 {
-        if (AppGetMode() == APP_MODE_OFF || (event & CLOCK_EVENT_SECOND) == 0) {
+        if (appMode == APP_MODE_OFF || (event & CLOCK_EVENT_SECOND) == 0) {
                 return;
         }
         if (saveTimer != 0) {

@@ -100,7 +100,7 @@ static eeprom unsigned int eeAlarmLevel = 50;
  * Инициализация датчика. Параметры настройки извлекаются из EEPROM и
  * запускается начальный цикл накачки.
  */
-extern void SensorInit()
+extern void SensorOn()
 {
         unsigned char i;
 
@@ -118,6 +118,14 @@ extern void SensorInit()
         }
         RunCharge(PUMP_TICKS_INIT % 255);
         _interrupt_enable(INT_EXT1);
+}
+
+extern void SensorOff()
+{
+        _interrupt_disable(INT_EXT1);
+        _dir_in(OUT_PUMP_SWITCH);
+        _pin_off(IN_SENSOR);
+        _pin_off(OUT_PUMP_SWITCH);
 }
 
 /*

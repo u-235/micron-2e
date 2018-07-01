@@ -43,7 +43,10 @@ extern "C" {
 /**
  * Инициализация часов.
  */
-extern void ClockInit();
+extern void ClockOn();
+
+#define ClockSleep()
+#define ClockOff()
 
 /**
  * \brief Было ли обновление.

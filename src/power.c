@@ -110,6 +110,12 @@ static unsigned char btrPercent = 0;
 /* Напряжение источника питания, в сотых долях вольта. */
 static unsigned int btrVoltage = 0;
 
+static struct _aFlags {
+        unsigned char init :1, off :1;
+} flags = {
+        0, 0
+};
+
 /*************************************************************
  *      Public function
  *************************************************************/
@@ -117,11 +123,20 @@ static unsigned int btrVoltage = 0;
 /*
  * Инициализация модуля.
  */
-extern void PowerInit()
+extern void PowerOn()
 {
-        /* Режим сна - Power-save, внешние прерывания по низкому уровню. */
-        MCUCR = (1 << SE) | (1 << SM1) | (1 << SM0);
-        RunMeasure();
+        if (flags.init == 0) {
+                /* Режим сна - Power-save, внешние прерывания по низкому уровню. */
+                MCUCR = (1 << SE) | (1 << SM1) | (1 << SM0);
+                RunMeasure();
+                flags.init = 1;
+        }
+        flags.off = 0;
+}
+
+extern void PowerOff()
+{
+        flags.off = 1;
 }
 
 /*
@@ -130,7 +145,7 @@ extern void PowerInit()
  */
 extern void PowerClockEvent(unsigned char event)
 {
-        if (AppGetMode() == APP_MODE_OFF || (event & CLOCK_EVENT_SECOND) == 0) {
+        if (flags.off == 1 || (event & CLOCK_EVENT_SECOND) == 0) {
                 return;
         }
         RunMeasure();

@@ -17,7 +17,11 @@ extern "C" {
 /**
  * Инициализация модуля.
  */
-extern void PowerInit();
+extern void PowerOn();
+
+#define PowerSleep()
+
+extern void PowerOff();
 
 /**
  * Обновление внутреннего состояния модуля.

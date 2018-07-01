@@ -29,9 +29,13 @@ extern "C" {
 #define USER_ALERT_POWER        3U
 
 /**
- * Инициализация. Загрузка настроек из EEPROM.
+ * Включение, инициализация и загрузка настроек из EEPROM.
  */
-extern void UserInit();
+extern void UserOn();
+
+extern void UserSleep();
+
+#define UserOff()
 
 /**
  * Обновление внутреннего состояния модуля.

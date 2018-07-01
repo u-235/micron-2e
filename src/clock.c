@@ -30,7 +30,7 @@ static unsigned int days = 0;
  *      Public function
  *************************************************************/
 
-extern void ClockInit()
+extern void ClockOn()
 {
         /* Асинхронный режим работы
          * Предделитель = 128

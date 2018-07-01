@@ -45,6 +45,12 @@ extern "C" {
  */
 #define SCREEN_VIEW_ALERT_POWER 6U
 
+extern void ScreenOn();
+
+extern void ScreenSleep();
+
+#define ScreenOff() ScreenSleep()
+
 /**
  * Обновление внутреннего состояния модуля.
  * \param event Набор флагов CLOCK_EVENT_xx см. clock.h
