@@ -106,6 +106,10 @@ extern void ScreenClockEvent(unsigned char event)
         if (++windowStep > 9) {
                 windowStep = 0;
         }
+
+        if (show == SCREEN_VIEW_MAIN) {
+                flags.invalidate = 1;
+        }
 }
 
 /*
@@ -156,6 +160,13 @@ extern void ScreenDraw()
         if (old != show) {
                 flags.invalidate = 1;
         }
+        old = show;
+
+        if (flags.invalidate == 0) {
+                return;
+        }
+
+        LcdClear();
 
         switch (show) {
         case SCREEN_VIEW_INTRO:
@@ -177,6 +188,9 @@ extern void ScreenDraw()
         default:
                 DrawWindow();
         }
+
+        LcdUpdate();
+        flags.invalidate = 0;
 }
 
 /*
@@ -261,11 +275,6 @@ static void HandleKeyMenu(unsigned char key)
 
 static void DrawMenu()
 {
-        if (flags.invalidate == 0) {
-                return;
-        }
-        flags.invalidate = 0;
-
         sprintf_P(buf, _LOCAL_NAME(msgMenuTitle));
         LcdStringInv(buf, 0, 0);
 
@@ -356,21 +365,11 @@ static void DrawMenu()
                         LcdString(buf, 0, 4);
                 }
         }
-
-        LcdUpdate();
 }
 
 static void DrawWindow()
 {
-        unsigned char i, j, old = 0;
-
-        if (old != windowStep) {
-                flags.invalidate = 1;
-        }
-        if (flags.invalidate == 0) {
-                return;
-        }
-        flags.invalidate = 0;
+        unsigned char i, j;
 
         sprintf_P(buf, _LOCAL_NAME(msgWindowRadiation),
                         SensorGetRadiation(SENSOR_INDEX_MAX + 1));
@@ -414,60 +413,32 @@ static void DrawWindow()
                                 SensorGetDoseAll());
         }
         LcdString(buf, 0, 5);
-
-        LcdUpdate();
 }
 
 static void DrawIntro()
 {
-        if (flags.invalidate == 0) {
-                return;
-        }
-        flags.invalidate = 0;
-
-        LcdClear();
         sprintf_P(buf, _LOCAL_NAME(msgProloqueTitle));
         LcdString(buf, 0, 1);
         sprintf_P(buf, _LOCAL_NAME(msgProloqueLoad));
         LcdString(buf, 0, 4);
-        LcdUpdate();
 }
 
 static void DrawBay()
 {
-        if (flags.invalidate == 0) {
-                return;
-        }
-        flags.invalidate = 0;
-
-        LcdClear();
         sprintf_P(buf, _LOCAL_NAME(msgEpiloque));
         LcdString(buf, 0, 2);
-        LcdUpdate();
 }
 
 static void DrawAlertDose()
 {
-        if (flags.invalidate == 0) {
-                return;
-        }
-        flags.invalidate = 0;
-
         sprintf_P(buf, _LOCAL_NAME(msgAlertDanger));
         LcdStringInv(buf, 0, 2);
         sprintf_P(buf, _LOCAL_NAME(msgAlertRadiation));
         LcdStringInv(buf, 0, 3);
-        LcdUpdate();
 }
 
 static void DrawAlertPower()
 {
-        if (flags.invalidate == 0) {
-                return;
-        }
-        flags.invalidate = 0;
-
         sprintf_P(buf, _LOCAL_NAME(msgAlertPower));
         LcdString(buf, 0, 4);
-        LcdUpdate();
 }
